@@ -1,14 +1,14 @@
 #![allow(warnings, unused)]
 
 use std::thread;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::fs;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
 use std::collections::HashMap;
 
-static BASE_DIR: &str = "C:/UNSORTED/rust_website/files";
+static BASE_DIR: &str = "/UNSORTED/rust_website/files"; //Keep in linux format
 static PORT: u32 = 443;
 static Body_delim_pattern: [u8; 4] = [13, 10, 13, 10];
 
@@ -31,8 +31,16 @@ fn make_response(mut stream: &TcpStream, mut response_code: i32, mut response_st
         response.push('\n');
     }
     response.push('\n');
-    dbg!(&response);
     stream.write(response.as_bytes());
+}
+
+fn formatPath(mut path: &str) {
+    for c in path.chars() {
+        if c == '\\' {
+            c = '/';
+        }
+        
+    }
 }
 
 fn handle_client(mut stream: TcpStream) {
@@ -127,37 +135,43 @@ fn handle_client(mut stream: TcpStream) {
     response_headers.insert("Connection", "Closed");
     match (&HTTP_Method).as_str() {
         "GET" => {
-            let pathStr = format!("{}{}", &BASE_DIR, &HTTP_Target);
-            let path = Path::new(&pathStr);
-            
-            if path.exists() {
-                println!("start {}", path.clone().to_str().unwrap());
-                path.canonicalize();
-                path = path.clone().canonicalize().unwrap().as_path();
-                println!("end {}", path.clone().to_str().unwrap());
-                if path.starts_with(&BASE_DIR) {
-                    if(path.is_file()) {
-                        match fs::read(path) {
-                            Ok(content) => {
-                                make_response(&stream, 200, "OK", &response_headers);
-                                stream.write(&content);
-                            }, Err(e) => {
-                                make_response(&stream, 418, "I'm a teapot", &response_headers);
-                                stream.write(b"I'm a teapot :>");
-                            }
-                        }
-                    }else{
-                        make_response(&stream, 418, "WIP", &response_headers);
-                        stream.write(b"dir");
-                    }
-                }else{
-                    make_response(&stream, 200, "OK", &response_headers);
-                    stream.write(b"<script>location.href = 'https://youtu.be/dQw4w9WgXcQ';</script>");
-                }
-            }else{
-                make_response(&stream, 404, "Not Found", &response_headers);
-                stream.write(b"404");
-            }
+            let mut path = PathBuf::from(format!("{}{}", &BASE_DIR, &HTTP_Target));
+            dbg!(&path);
+            // match path.canonicalize() {
+            //     Ok(tempPath) => {
+            //         path = tempPath.as_path();
+                    
+            //     },
+            //     Err(e) => {
+            //         println!("FSDOHUI:JNKL");
+            //     }
+            // }
+            // if path.exists() {
+            //     let tempPath = .unwrap();
+            //     println!("Path {}", path.clone().to_str().unwrap());
+            //     if path.starts_with(&BASE_DIR) {
+            //         if(path.is_file()) {
+            //             match fs::read(path) {
+            //                 Ok(content) => {
+            //                     make_response(&stream, 200, "OK", &response_headers);
+            //                     stream.write(&content);
+            //                 }, Err(e) => {
+            //                     make_response(&stream, 418, "I'm a teapot", &response_headers);
+            //                     stream.write(b"I'm a teapot :>");
+            //                 }
+            //             }
+            //         }else{
+            //             make_response(&stream, 418, "WIP", &response_headers);
+            //             stream.write(b"dir");
+            //         }
+            //     }else{
+            //         make_response(&stream, 200, "OK", &response_headers);
+            //         stream.write(b"<script>location.href = 'https://youtu.be/dQw4w9WgXcQ';</script>");
+            //     }
+            // }else{
+            //     make_response(&stream, 404, "Not Found", &response_headers);
+            //     stream.write(b"404");
+            // }
         },
         _ => ()
     }
