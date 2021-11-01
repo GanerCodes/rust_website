@@ -110,7 +110,7 @@ pub fn byte_hex_to_u8(mut c: u8) -> u8 {
     if c < 58 {
         return c - 48;
     }
-    return c - 65;
+    return c - 55;
 }
 
 pub fn decode_url(mut url: &str) -> String {
@@ -119,16 +119,23 @@ pub fn decode_url(mut url: &str) -> String {
     let mut expectedDigitCount = 0 as u8;
     let mut check = 0;
     for mut c in url.chars() {
+        // dbg!(&c, &expectedDigitCount, &check);
         let mut append = false;
-        if expectedDigitCount == 0 {
-            if c == '%' {
+        if c == '%' {
+            if expectedDigitCount == 0 {
                 check = 1;
-            } else if check < 3 {
+            }
+            continue;
+        }
+        if expectedDigitCount == 0 {
+            if check == 1 || check == 2 {
                 let hex_digit = byte_hex_to_u8(c as u8);
                 if check == 1 {
-                    char_buf[0] += hex_digit
+                    char_buf[0] = hex_digit * 16;
+                    dbg!(&c, &hex_digit, &char_buf[0]);
                 }else{
-                    char_buf[0] += hex_digit * 16;
+                    char_buf[0] += hex_digit;
+                    dbg!(&char_buf[0]);
                     if char_buf[0] < 128 {
                         append = true;
                     }else if char_buf[0] >> 5 == 6 {
@@ -136,13 +143,14 @@ pub fn decode_url(mut url: &str) -> String {
                     }else if char_buf[0] >> 4 == 14 {
                         expectedDigitCount = 4;
                     }else if char_buf[0] >> 3 == 30 { 
-                        expectedDigitCount = 8;
+                        expectedDigitCount = 6;
                     }
                 }
                 check += 1;
             }
         }else{
             let hex_digit = byte_hex_to_u8(c as u8);
+            dbg!(&c);
             char_buf[(expectedDigitCount / 2) as usize] += hex_digit * (15 * (1 - expectedDigitCount % 2) + 1);
             expectedDigitCount -= 1;
             if expectedDigitCount == 0 {
@@ -150,6 +158,7 @@ pub fn decode_url(mut url: &str) -> String {
             }
         }
         if append {
+            dbg!(&char_buf);
             result.push_str(str::from_utf8(&char_buf).unwrap());
             char_buf[0] = 0;
             char_buf[1] = 0;
@@ -158,6 +167,7 @@ pub fn decode_url(mut url: &str) -> String {
             append = false;
         }
     }
+    dbg!(&result);
     return result;
 }
 
