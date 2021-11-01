@@ -1,130 +1,28 @@
-#![allow(warnings, unused)]
+use crate::utils::*;
+use crate::*;
 
-#[macro_use]
-extern crate once_cell;
-
+use std::lazy::SyncLazy;
 use std::{thread, str, fs};
 use std::path::{Path, PathBuf};
-use std::cmp::{min, max};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{BufReader, Read, Write, prelude::*};
 use std::collections::HashMap;
-use once_cell::sync::Lazy;
-
-static MIME_FILE_PATH: &str = "MIME_types.txt";
-static BASE_DIR: &str = "/Users/Administrator/Documents/Projects/rust_website/files"; //Keep in linux format
-static PORT: u32 = 443;
 
 static Body_delim_pattern: [u8; 4] = [13, 10, 13, 10];
-static MIME_types: Lazy<HashMap::<String, String>> = sync_lazy! {
+
+pub static MIME_types: SyncLazy<HashMap::<String, String>> = SyncLazy::new(|| {
     let mut MIMEs = HashMap::<String, String>::new();
     let mut MIME_types_file = fs::File::open(&MIME_FILE_PATH).unwrap();
     let mut MIME_types_reader = BufReader::new(MIME_types_file);
     for line in MIME_types_reader.lines() {
-        println!("{}", line.unwrap());
+        let mut lineRaw = line.unwrap();
+        let mut lineSplit = lineRaw.splitn(2, ", ");
+        MIMEs.insert(lineSplit.next().unwrap().to_string(), lineSplit.next().unwrap().to_string());
     }
-    MIMEs;
-};
+    MIMEs
+});
 
-fn printMap(mut map: HashMap::<String, String>) {
-    for (key, value) in map.into_iter() {
-        println!("{:<32} :\t{}", key, value);
-    }
-}
-
-fn make_response(mut stream: &TcpStream, mut response_code: i32, mut response_str: &str, mut headers: &HashMap::<&str, &str>) {
-    let mut response = String::from("HTTP/1.1 ");
-    response.push_str(&response_code.to_string());
-    response.push('\n');
-    response.push_str(&response_str);
-    response.push('\n');
-    for (header, value) in headers.into_iter() {
-        response.push_str(&header);
-        response.push_str(": ");
-        response.push_str(&value);
-        response.push('\n');
-    }
-    response.push('\n');
-    stream.write(response.as_bytes());
-}
-
-fn write_file(mut stream: &TcpStream, mut filePath: &PathBuf, mut headers: &HashMap::<&str, &str>) {
-    match fs::read(&filePath) {
-        Ok(content) => {
-            make_response(&stream, 200, "OK", &headers);
-            stream.write(&content);
-        }, Err(e) => {
-            make_response(&stream, 418, "I'm a teapot", &headers);
-            stream.write(b"I'm a teapot :>");
-        }
-    }
-}
-
-fn formatPath(mut path: &str) -> String {
-    let mut result  = String::new();
-    let mut segment = String::new();
-    let mut dotCount: i32 = 0;
-    let mut ignCount: i32 = 0;
-    let mut prevChar = '/';
-    
-    for mut c in path.chars().rev() {
-        if c == '\\' {
-            c = '/';
-        }
-        match c {
-            '.' => {
-                if dotCount > -1 {
-                    dotCount += 1;
-                } else {
-                    segment.push('.');
-                }
-            },
-            '/' => {
-                if prevChar == '/' {
-                    continue;
-                }
-                if dotCount != -1 {
-                    ignCount += min(dotCount, 2);
-                }else if dotCount == -1 && ignCount == 0 {
-                    segment.push('/');
-                    result.push_str(segment.as_str());
-                }
-                segment = String::new();
-                if ignCount > 0 { 
-                    ignCount -= 1
-                }
-                dotCount = 0;
-            },
-            _ => {
-                segment.push(c);
-                dotCount = -1;
-            }
-        }
-        prevChar = c;
-    }
-    if result.len() == 0 {
-        return String::from("/");
-    }
-    return result.chars().rev().collect();
-}
-
-fn DTAsafe(mut path: &str, mut base: &str) -> bool {
-    if path.len() < base.len() {
-        return false;
-    }
-    let mut pathLower = path.to_lowercase();
-    let mut baseLower = path.to_lowercase();
-    let mut pathChars = pathLower.chars();
-    let mut baseChars = baseLower.chars();
-    for i in 0..base.len() {
-        if pathChars.next() != baseChars.next() {
-            return false;
-        }
-    }
-    return true;
-}
-
-fn handle_client(mut stream: TcpStream) {
+pub fn handle_client(mut stream: TcpStream) {
     stream.set_nonblocking(true);
     let mut raw_request = Vec::new();
     stream.read_to_end(&mut raw_request);
@@ -206,11 +104,13 @@ fn handle_client(mut stream: TcpStream) {
     // printMap(headers);
     println!("{} {} {}", HTTP_Version, HTTP_Method, HTTP_Target);
     
+    decode_url(&HTTP_Target);
+    
     /*TODO:
         escape sequences
-        mime types
         playbackable video/audio
         chunked file delivery
+        video/image/file uploader
         url shorterner
         path grepping file, move settings into json, etc
     */
@@ -229,6 +129,8 @@ fn handle_client(mut stream: TcpStream) {
                 match filePath.canonicalize() {
                     Ok(filePath) => {
                         if filePath.is_file() {
+                            let mut MIME = get_MIME_from_filename(&pathString);
+                            response_headers.insert("Content-Type", MIME.as_str());
                             write_file(&stream, &filePath, &response_headers);
                         }else{
                             let mut indexPath = filePath.clone();
@@ -253,19 +155,4 @@ fn handle_client(mut stream: TcpStream) {
         },
         _ => ()
     }
-}
-
-fn main() {
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", PORT)).unwrap();
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("New connection: {}", stream.peer_addr().unwrap());
-                thread::spawn(move || handle_client(stream));
-            } Err(e) => {
-                println!("Error: {}", e);
-            }
-        }
-    }
-    drop(listener);
 }
