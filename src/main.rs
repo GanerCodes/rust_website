@@ -1,4 +1,5 @@
 #![allow(warnings, unused)]
+#![feature(try_blocks)]
 #![feature(once_cell)]
 
 mod server;

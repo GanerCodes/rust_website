@@ -1,5 +1,32 @@
 <html>
     <head>
+        <style>
+            html {
+                background: linear-gradient(to right, #6a0ac9, #0921d6, #5005ff, #6a0ac9);
+                background-size: 400% 400%;
+                animation: AnimationName 20s infinite cubic-bezier(.12,.35,1,.74);
+                overflow: hidden;
+                
+            }
+            @keyframes AnimationName {
+                0%{background-position:400% 0%}
+                100%{background-position:0% 0%}
+            }
+            body {
+                display: flex;
+                align-items: center;
+                width: 100%;
+                height: 100%;
+            }
+            h1 {
+                color: white;
+                text-align: center;
+                line-height: 100%;
+                font-size: 100px;
+                padding: auto;
+                width: 100%;
+            }
+        </style>
     </head>
     <body>
         <h1>haha yes</h1>

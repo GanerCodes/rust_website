@@ -409,7 +409,6 @@
 .m21, application/mp21
 .mp4a, audio/mp4
 .mp4, video/mp4
-.mp4, application/mp4
 .m3u8, application/vnd.apple.mpegurl
 .mus, application/vnd.musician
 .msty, application/vnd.muvee.style

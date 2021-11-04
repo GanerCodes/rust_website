@@ -14,29 +14,39 @@ pub fn printMap(mut map: HashMap::<String, String>) {
     }
 }
 
-pub fn make_response(mut stream: &TcpStream, mut response_code: i32, mut response_str: &str, mut headers: &HashMap::<&str, &str>) {
-    let mut response = String::from("HTTP/1.1 ");
-    response.push_str(&response_code.to_string());
-    response.push('\n');
-    response.push_str(&response_str);
-    response.push('\n');
-    for (header, value) in headers.into_iter() {
-        response.push_str(&header);
-        response.push_str(": ");
-        response.push_str(&value);
-        response.push('\n');
-    }
-    response.push('\n');
-    stream.write(response.as_bytes());
+pub struct Response<'a> {
+    pub code: i32,
+    pub code_name: &'a str,
+    pub headers: HashMap<String, String>
 }
 
-pub fn write_file(mut stream: &TcpStream, mut filePath: &PathBuf, mut headers: &HashMap::<&str, &str>) {
+pub fn make_response(mut stream: &TcpStream, response: &Response) {
+    let mut request = String::from("HTTP/1.1 ");
+    request.push_str(&response.code.to_string());
+    request.push('\n');
+    request.push_str(&response.code_name);
+    request.push('\n');
+    for (header, value) in response.headers.iter() {
+        request.push_str(&header);
+        request.push_str(": ");
+        request.push_str(&value);
+        request.push('\n');
+    }
+    request.push('\n');
+    stream.write(request.as_bytes());
+}
+
+pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &PathBuf) {
     match fs::read(&filePath) {
         Ok(content) => {
-            make_response(&stream, 200, "OK", &headers);
+            make_response(&stream, &response);
             stream.write(&content);
         }, Err(e) => {
-            make_response(&stream, 418, "I'm a teapot", &headers);
+            make_response(&stream, &Response {
+                code: 418,
+                code_name: "I'm a teapot",
+                headers: response.headers.clone()
+            });
             stream.write(b"I'm a teapot :>");
         }
     }
@@ -106,68 +116,52 @@ pub fn DTAsafe(mut path: &str, mut base: &str) -> bool {
     return true;
 }
 
-pub fn byte_hex_to_u8(mut c: u8) -> u8 {
+pub fn byte_hex_to_u8(mut c: u8) -> u8 { //assumed safe input
     if c < 58 {
         return c - 48;
     }
     return c - 55;
 }
 
-pub fn decode_url(mut url: &str) -> String {
+pub fn decode_url(mut url: &str) -> String { //Redo this at some point more efficently
     let mut result = String::new();
-    let mut char_buf: [u8; 4] =[0, 0, 0, 0];
-    let mut expectedDigitCount = 0 as u8;
-    let mut check = 0;
+    let mut char_buf = [0u8; 4];
+    
+    let mut maxNibbles = -1i8;
+    let mut nibbleCount = 0;
     for mut c in url.chars() {
-        // dbg!(&c, &expectedDigitCount, &check);
-        let mut append = false;
         if c == '%' {
-            if expectedDigitCount == 0 {
-                check = 1;
+            if maxNibbles == -1 {
+                nibbleCount = -1;
             }
-            continue;
-        }
-        if expectedDigitCount == 0 {
-            if check == 1 || check == 2 {
-                let hex_digit = byte_hex_to_u8(c as u8);
-                if check == 1 {
-                    char_buf[0] = hex_digit * 16;
-                    dbg!(&c, &hex_digit, &char_buf[0]);
-                }else{
-                    char_buf[0] += hex_digit;
-                    dbg!(&char_buf[0]);
-                    if char_buf[0] < 128 {
-                        append = true;
-                    }else if char_buf[0] >> 5 == 6 {
-                        expectedDigitCount = 2;
-                    }else if char_buf[0] >> 4 == 14 {
-                        expectedDigitCount = 4;
-                    }else if char_buf[0] >> 3 == 30 { 
-                        expectedDigitCount = 6;
-                    }
-                }
-                check += 1;
+        }else if nibbleCount == -1 {
+            char_buf[0] = byte_hex_to_u8(c as u8) << 4;
+            if char_buf[0] >> 7 == 0 {
+                maxNibbles = 1;
+            }else if char_buf[0] >> 5 == 6 {
+                maxNibbles = 3;
+            }else if char_buf[0] == 224 {
+                maxNibbles = 5;
+            }else{
+                maxNibbles = 7;
+            }
+            nibbleCount = 0;
+        }else if maxNibbles > 0 {
+            nibbleCount += 1;
+            let nibble = byte_hex_to_u8(c as u8);
+            if nibbleCount % 2 == 0 {
+                char_buf[(nibbleCount >> 1) as usize] = nibble << 4;
+            }else{
+                char_buf[(nibbleCount >> 1) as usize] |= nibble;
+            }
+            if nibbleCount == maxNibbles {
+                result.push_str(&String::from_utf8_lossy(&char_buf[..(1 + maxNibbles >> 1) as usize]));
+                maxNibbles = -1;
             }
         }else{
-            let hex_digit = byte_hex_to_u8(c as u8);
-            dbg!(&c);
-            char_buf[(expectedDigitCount / 2) as usize] += hex_digit * (15 * (1 - expectedDigitCount % 2) + 1);
-            expectedDigitCount -= 1;
-            if expectedDigitCount == 0 {
-                append = true;
-            }
-        }
-        if append {
-            dbg!(&char_buf);
-            result.push_str(str::from_utf8(&char_buf).unwrap());
-            char_buf[0] = 0;
-            char_buf[1] = 0;
-            char_buf[2] = 0;
-            char_buf[3] = 0;
-            append = false;
+            result.push(c);
         }
     }
-    dbg!(&result);
     return result;
 }
 
@@ -187,7 +181,7 @@ pub fn get_extension(mut path: &str) -> String {
             }
         }
     }
-    return (result.chars().rev().collect());
+    return result.chars().rev().collect();
 }
 
 pub fn get_MIME_from_filename(mut path: &str) -> String {
@@ -199,4 +193,28 @@ pub fn get_MIME_from_filename(mut path: &str) -> String {
             return "text".to_string();
         }
     }
+}
+
+//I'm really considering using regex and the such at this point, this is so many lines for such a stupid thing
+pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
+    let mut sStr = "".to_string();
+    let mut eStr = "".to_string();
+    
+    let mut state = 0;
+    for mut c in header.chars() {
+        match state {
+            0 => { if c == '=' { state = 1; } },
+            1 => { if c == '-' { state = 2; } else { sStr.push(c); } },
+            _ => { eStr.push(c); }
+        }
+    }
+    
+    let sNum = sStr.parse::<u64>().unwrap_or(0);
+    let eNum = eStr.parse::<u64>().unwrap_or(fileSize - 1);
+    return (sNum, eNum);
+}
+
+pub fn splitMIME(mime: &str) -> (&str, &str) {
+    let mut spl = mime.splitn(2, '/');
+    (spl.next().unwrap(), spl.next().unwrap())
 }
