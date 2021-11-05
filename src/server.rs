@@ -111,9 +111,10 @@ pub fn handle_client(mut stream: TcpStream) {
     /*TODO:
         directory listing
         video/image/file uploader
-        chunked file delivery
-        https?
         url shorterner
+        gallery view, with comics [as well as supporting video and audio] with multiple views [scroll, page-by-page [with mouse click side turning direction]]
+        chunked file delivery?
+        https?
         path grepping file, move settings into json, etc
     */
     
@@ -179,6 +180,10 @@ pub fn handle_client(mut stream: TcpStream) {
                             }
                             break;
                         }else{
+                            if(HTTP_Target.chars().last().unwrap() != '/') {
+                                send_redirect(&stream, &(format!("{}/", &HTTP_Target)).to_string());
+                                break;
+                            }
                             let mut indexPath = filePath.clone();
                             indexPath.push("index.html");
                             if indexPath.exists() {

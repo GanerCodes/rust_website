@@ -52,6 +52,10 @@ pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &Pa
     }
 }
 
+pub fn send_redirect(mut stream: &TcpStream, mut newLoc: &String) {
+    stream.write(format!("HTTP/1.1 301 Moved Permanently\nLocation: {}", newLoc).as_bytes());
+}
+
 pub fn formatPath(mut path: &str) -> String {
     let mut result  = String::new();
     let mut segment = String::new();
