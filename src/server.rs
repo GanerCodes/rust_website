@@ -3,7 +3,7 @@ use crate::*;
 
 use std::lazy::SyncLazy;
 use std::{thread, str, fs};
-use std::fs::File;
+use std::fs::{File, DirEntry};
 use std::path::{Path, PathBuf};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{SeekFrom, BufReader, Read, Write, prelude::*};
@@ -193,12 +193,18 @@ pub fn handle_client(mut stream: TcpStream) {
                                     headers: response_headers
                                 }, &indexPath);
                             } else {
+                                let mut dirListingHtml = String::from("<html>\n<head>\n<style>\nhtml {\ncolor:white;\nbackground-color:black;\n}\n</style>\n</head><body>");
+                                for fileEntry in fs::read_dir(filePath).unwrap() {
+                                    let fileEntryName = fileEntry.unwrap().file_name().into_string().unwrap();
+                                    dirListingHtml.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &fileEntryName, &fileEntryName));
+                                }
+                                dirListingHtml.push_str("</body>\n</html>");
                                 make_response(&stream, &Response{
-                                    code: 418,
-                                    code_name: "WIP",
+                                    code: 200,
+                                    code_name: "OK",
                                     headers: response_headers
                                 });
-                                stream.write(b"dir");
+                                stream.write(dirListingHtml.as_bytes());
                             }
                         }
                     },

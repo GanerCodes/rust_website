@@ -1,4 +1,8 @@
-backgroundColor = '454577'
+let mulX = 3;
+let mulY = 3;
+let s = 350;
+let limit = 5;
+backgroundColor = '#ffffff'
 var clrs = [
     '#878a87',
     '#cbdbc8',
@@ -9,10 +13,6 @@ var clrs = [
     '#dfa372'
 ];
 
-
-
-let limit = 10;
-let s = 100;
 
 let locList = {};
 let blob, seed, base, img;
@@ -59,8 +59,8 @@ function makeShape(r, x, y, seed, limit, f, pq) {
     if(x in locList) {
         if(locList[x].includes(y)) {
             if(random(0, 1) > 0.8) {
-                x += s * Math.floor((-3, 3)) / 3;
-                y += s * Math.floor((-3, 3)) / 3;
+                x += s / 4 * Math.floor((-4, 4));
+                y += s / 4 * Math.floor((-4, 4));
             }else{
                 return;
             }
@@ -91,13 +91,13 @@ function makeShape(r, x, y, seed, limit, f, pq) {
     let mw = s / 2;
     let mh = s / 2;
     
-    blob.clear();
+    blob = createGraphics(s, s);
     blob.push();
     blob.translate(blob.width / 2, blob.height / 2);
     blob.rectMode(CENTER);
     blob.fill(255);
     blob.strokeWeight(3);
-    blob.stroke(10, 10, 10);
+    blob.stroke(1, 1, 1, 64);
     if(rb()) {
         blob.beginShape();
         blob.vertex(mw * coords[0][0], mh * coords[0][1]);
@@ -198,24 +198,6 @@ function makeShape(r, x, y, seed, limit, f, pq) {
             iy++;
         }
     }
-    
-    ix = 0, iy = 0;
-    let r = 0, g = 0, b = 0;
-    for(let i = 0; i < image.pixels.length; i += 4) {
-        if(image.pixels[i + 0] + image.pixels[i + 1] + image.pixels[i + 2] < 1) {
-            r = 0, g = 0, b = 0;
-            if(ix > 0) {
-                r +=
-            }
-        }
-        ix++;
-        if(ix == image.width) {
-            ix = 0;
-            iy++;
-        }
-    }
-
-    
     img.updatePixels();
     
     r.push();
@@ -232,6 +214,11 @@ function makeShape(r, x, y, seed, limit, f, pq) {
         for(let c of j) {
             let nX = x + c[0] * s;
             let nY = y + c[1] * s;
+            if(rb()) {
+                s += 10;
+            }else if(s > 10) {
+                s -= 10;
+            }
             makeShape(r, nX, nY, random(0, 100000000), limit, f + 1, [...q]);
         }
     }
@@ -239,10 +226,8 @@ function makeShape(r, x, y, seed, limit, f, pq) {
 }
 
 function setup() {
-    var cnv = createCanvas(2500, 1280);
+    var cnv = createCanvas(windowWidth, windowHeight);
     cnv.style('display', 'block');
-    
-    smooth();
     
     rectMode(CENTER);
     imageMode(CENTER);
@@ -250,17 +235,15 @@ function setup() {
     seed = random(1, 1000000000);
     randomSeed(seed);
     
-    base = createGraphics(width, height);
-    blob = createGraphics(100, 100);
+    base = createGraphics(width * mulX, height * mulY);
+    blob = createGraphics(s, s);
     
     base.drawingContext.shadowOffsetX = 5;
     base.drawingContext.shadowOffsetY = 5;
     base.drawingContext.shadowBlur = 15;
     base.drawingContext.shadowColor = 'black';
     
-    base.smooth();
-    blob.smooth();
-    for(let i = 0; i < 14; i++) {
+    for(let i = 0; i < 6; i++) {
         let x1 = s * Math.floor(random(1/6 * base.width , 5/6 * base.width ) / s);
         let y1 = s * Math.floor(random(1/6 * base.height, 5/6 * base.height) / s);
         makeShape(base, x1, y1, random(0, 100000000), 10, 0); //base.width / 2, base.height / 2
@@ -269,14 +252,10 @@ function setup() {
 function draw() {
     background(backgroundColor[0], backgroundColor[1], backgroundColor[2]);
     
-    image(base, width / 2, height / 2);
+    image(base, width / 2, height / 2, width, height);
     
     strokeWeight(5);
     stroke(255);
     noFill();
     rect(width / 2, height / 2, width, height);
-}
-function keyPressed() {
-    randomSeed(random(1, 1000000000));
-    seed = random(1, 1000000000);
 }
