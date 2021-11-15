@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 use std::time::SystemTime;
 use std::thread::sleep;
 use std::{slice, str};
-use crate::tables::*;
-use crate::aes::*;
+use Rust_AES::tables::*;
+use Rust_AES::aes::*;
 
 pub fn AES_SubBytes_Inverse(state: &mut [u8; 16]) {
     for i in 0..16 {
@@ -83,28 +83,6 @@ pub fn AES_Decrypt_Block(mut message: [u8; 16], mut expandedKey: [u8; 176]) -> [
     return state;
 }
 
-// pub fn AES_Decrypt(mut message: &[u8], mut key: [u8; 16]) -> Vec::<u8> {
-//     let mut changedMessage = Vec::<u8>::new();
-//     let mut buffer: [u8; 16] = [0; 16];
-//     let mut chunks = message.chunks(16);
-//     let mut index = chunks.len() as u128;
-//     let mut expandedKey: [u8; 176] = [0; 176];
-//     for chunk in chunks {
-//         index -= 1;
-//         let chunkLen = chunk.len();
-//         for i in 0..16 {
-//             buffer[i] = if i < chunkLen {chunk[i]} else {0};
-//         }
-        
-//         let newKey = AES_KeyExpansion((u128::from_le_bytes(key).wrapping_add(index)).to_le_bytes(), &mut expandedKey);
-        
-//         let enc_chunk = AES_Decrypt_Block(buffer, expandedKey).to_vec();
-//         changedMessage.extend(enc_chunk);
-//     }
-    
-//     return changedMessage;
-// }
-
 pub fn AES_Decrypt(mut message: &[u8], mut key: [u8; 16]) -> Vec::<u8> {
     let mut changedMessage = Vec::<u8>::new();
     let mut buffer: [u8; 16] = [0; 16];
@@ -121,9 +99,9 @@ pub fn AES_Decrypt(mut message: &[u8], mut key: [u8; 16]) -> Vec::<u8> {
             buffer[i] = if i < chunkLen {chunk[i]} else {0};
         }
         
-        let newKey = AES_KeyExpansion((u128::from_le_bytes(key).wrapping_add(index)).to_le_bytes(), &mut expandedKey);
-        
+        AES_KeyExpansion((u128::from_le_bytes(key).wrapping_add(index)).to_le_bytes(), &mut expandedKey);
         let enc_chunk = AES_Decrypt_Block(buffer, expandedKey).to_vec();
+        
         changedMessage.extend(enc_chunk);
     }
     

@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 use std::time::SystemTime;
 use std::thread::sleep;
 use std::{slice, str};
-use crate::tables::*;
-use crate::aes::*;
+use Rust_AES::tables::*;
+use Rust_AES::aes::*;
 
 pub fn AES_SubBytes(state: &mut [u8; 16]) {
     for i in 0..16 {
@@ -99,9 +99,9 @@ pub fn AES_Encrypt(mut message: &[u8], mut key: [u8; 16]) -> Vec::<u8> {
             buffer[i] = if i < chunkLen {chunk[i]} else {0};
         }
         
-        let newKey = AES_KeyExpansion((u128::from_le_bytes(key).wrapping_add(index)).to_le_bytes(), &mut expandedKey);
-        
+        AES_KeyExpansion((u128::from_le_bytes(key).wrapping_add(index)).to_le_bytes(), &mut expandedKey);
         let enc_chunk = AES_Encrypt_Block(buffer, expandedKey).to_vec();
+        
         changedMessage.extend(enc_chunk);
     }
     

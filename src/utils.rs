@@ -1,12 +1,14 @@
+use crate::Rust_AES::encrypt::AES_Encrypt;
 use crate::server::{MIME_types};
 
 use std::lazy::SyncLazy;
-use std::{thread, str, fs};
+use std::{fmt, thread, str, fs};
 use std::path::{Path, PathBuf};
 use std::cmp::{min, max};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{BufReader, Read, Write, prelude::*};
 use std::collections::HashMap;
+use std::fmt::Write as fmtWrite;
 
 pub fn printMap(mut map: HashMap::<String, String>) {
     for (key, value) in map.into_iter() {
@@ -22,17 +24,14 @@ pub struct Response<'a> {
 
 pub fn make_response(mut stream: &TcpStream, response: &Response) {
     let mut request = String::from("HTTP/1.1 ");
-    request.push_str(&response.code.to_string());
-    request.push('\n');
-    request.push_str(&response.code_name);
-    request.push('\n');
+    write!(request, "{} {}\r\n", &response.code, &response.code_name);
     for (header, value) in response.headers.iter() {
         request.push_str(&header);
         request.push_str(": ");
         request.push_str(&value);
-        request.push('\n');
+        request.push_str("\r\n");
     }
-    request.push('\n');
+    request.push_str("\r\n");
     stream.write(request.as_bytes());
 }
 
@@ -62,7 +61,7 @@ pub fn formatPath(mut path: &str) -> String {
     let mut dotCount: i32 = 0;
     let mut ignCount: i32 = 0;
     let mut prevChar = '/';
-    
+    let mut c = ' ';
     for mut c in path.chars().rev() {
         if c == '\\' {
             c = '/';
@@ -101,6 +100,7 @@ pub fn formatPath(mut path: &str) -> String {
     if result.len() == 0 {
         return String::from("/");
     }
+    
     return result.chars().rev().collect();
 }
 
@@ -221,4 +221,45 @@ pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
 pub fn splitMIME(mime: &str) -> (&str, &str) {
     let mut spl = mime.splitn(2, '/');
     (spl.next().unwrap(), spl.next().unwrap())
+}
+
+pub fn hexToBytes(mut digits: Vec<u8>) -> Vec<u8> {
+    digits.chunks(2)
+        .map(|c| String::from_utf8_lossy(c))
+        .map(|s| u8::from_str_radix(&s, 16))
+        .map_while(|r| r.ok())
+        .collect()
+}
+
+pub fn bytesToHex(mut digits: Vec<u8>) -> String {
+    let mut result = String::new();
+    for digit in digits {
+        result.push_str(format!("{:02x}", digit).as_str());
+    }
+    result
+}
+
+/* pub fn printBinary(n: u32) {
+    println!("{}", &format!("{:#034b}", &n)[2..]);
+} */
+
+pub fn respond_404(mut stream: &TcpStream, response_headers: HashMap<String, String>) {
+    make_response(&stream, &Response {
+        code: 404,
+        code_name: "Not Found",
+        headers: response_headers
+    });
+    stream.write(b"404");
+}
+pub fn respond_400(mut stream: &TcpStream, response_headers: HashMap<String, String>) {
+    make_response(&stream, &Response {
+        code: 400,
+        code_name: "Bad Request",
+        headers: response_headers
+    });
+    stream.write(b"400");
+}
+
+pub fn encrypt_fileName(mut fileName: &String, key: [u8; 16]) -> String {
+    bytesToHex(AES_Encrypt(fileName.as_bytes(), key).to_vec())
 }

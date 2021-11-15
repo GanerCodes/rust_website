@@ -1,4 +1,4 @@
-use crate::tables::*;
+use Rust_AES::tables::*;
 
 pub fn AES_KeyExpansionCore(inp: &mut [u8; 4], i: usize) {
     let t = inp[0];
