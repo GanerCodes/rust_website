@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::lazy::SyncLazy;
 use std::time::SystemTime;
 use std::{thread, str, fs};
-use std::fs::{File, DirEntry};
+use std::fs::{File, DirEntry, OpenOptions};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::net::{TcpListener, TcpStream, Shutdown};
@@ -111,9 +111,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     HTTP_Target = decode_url(&HTTP_Target);
         
     /*TODO:
-        directory listing
-        video/image/file uploader
-        url shorterner
         gallery view, with comics [as well as supporting video and audio] with multiple views [scroll, page-by-page [with mouse click side turning direction]]
         chunked file delivery?
         https?
@@ -125,7 +122,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     response_headers.insert("Content-Type".to_string(), "text/html".to_string());
     response_headers.insert("Connection"  .to_string(), "Closed"   .to_string());
     
-    // dbg!(&encrypt_fileName(&String::from("/e/"), AES_KEY));
     let mut pathString = formatPath(&HTTP_Target);
     if pathString.chars().last().unwrap() != '/' { //Enforce prefix detection
         pathString.push('/');
@@ -137,16 +133,23 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     let mut shorthandDir = false;
     let mut encryptedDir = false;
     
-    // let name = format!("cheese{}", URL_Shorts.len());
-    // URL_Shorts.insert(name, "cheese".to_string());
-    // dbg!(&URL_Shorts);
-    
     if pathString.starts_with(SHORTHAND_PATH_PREFIX) {
         let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
         let cutPath = (&pathString[3..]).trim_matches('/');
-        if URL_Shorts.contains_key(cutPath) {
-            pathString = URL_Shorts.get(cutPath).unwrap().to_string();
-            // pathString.trim_start_matches(pat: P)("http")
+        if URL_Shorts.contains_key(cutPath) { //I need to figure out a way to do better string pattern stuff
+            let redirPath = URL_Shorts.get(cutPath).unwrap().to_string();
+            for i in WEBSITE_PREFIXES {
+                if redirPath.starts_with(i) {
+                    pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
+                    HTTP_Target = pathString.clone();
+                    shorthandDir = true;
+                    break;
+                }
+            }
+            if !shorthandDir {
+                send_redirect(&stream, &redirPath);
+                break;
+            }
         }else{
             respond_404(&stream, response_headers);
             break;
@@ -281,45 +284,81 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     },
     "POST" => {
-        if bodyStartIndex >= raw_request.len() {
-            respond_400(&stream, response_headers);
-            break;
+        match HTTP_Target.as_str() {
+            "/upload" => {
+                if bodyStartIndex >= raw_request.len() {
+                    respond_400(&stream, response_headers);
+                    break;
+                }
+                let data = &raw_request[(bodyStartIndex as usize)..];
+                
+                let newFileDir  = format!("{}{}", BASE_DIR, UPLOAD_FILE_PATH);
+                
+                let fileNameFromHeader = if headers.contains_key("filename") {headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
+                let fileName = format!("{}{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos(), fileNameFromHeader);
+                let fileExt  = get_extension(&fileName);
+                
+                let newFileName = format!("{}{}", &sha256(fileName.as_bytes())[..24], &fileExt);
+                let newFilePath = format!("{}/{}", newFileDir, newFileName);
+                
+                // dbg!(&fileName, &fileExt, &newFileName, &newFilePath);
+                
+                fs::create_dir_all(&newFileDir).unwrap();
+                let mut newFile = File::create(newFilePath).unwrap();
+                newFile.write_all(&data);
+                
+                let encryptedSegment = encrypt_fileName(
+                    &format!("{}/{}", UPLOAD_FILE_PATH, newFileName),
+                    AES_KEY
+                );
+                
+                let encryptedURL = format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encryptedSegment);
+                let finalURL = encryptedURL.as_bytes();
+                
+                response_headers.insert("Content-Length".to_string(), finalURL.len().to_string());
+                make_response(&stream, &Response{
+                    code: 200,
+                    code_name: "OK",
+                    headers: response_headers
+                });
+                stream.write(&finalURL);
+                break;
+            },
+            "/shortenURL" => {
+                if headers.contains_key("url") {
+                    let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
+                    let base_url = headers.get("url").unwrap();
+                    let url_hash = &sha256(base_url.as_bytes())[..16];
+                    make_response(&stream, &Response{
+                        code: 200,
+                        code_name: "OK",
+                        headers: response_headers
+                    });
+                    if URL_Shorts.contains_key(url_hash) {
+                        stream.write(URL_Shorts.get(url_hash).unwrap().as_bytes());
+                    }else{
+                        URL_Shorts.insert(url_hash.to_string(), (&base_url).to_string());
+                        //write to url file
+                        let mut shorthand_file = OpenOptions::new()
+                        .write(true)
+                        .append(true)
+                        .open(SHORTHAND_FILE_PATH)
+                        .unwrap();
+                        writeln!(shorthand_file, "{}:{}\n", url_hash, base_url).unwrap();
+                        stream.write(format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, SHORTHAND_PATH_PREFIX, url_hash).as_bytes());
+                    }
+                }else{
+                    respond_404(&stream, response_headers);
+                    break;
+                }
+            },
+            _ => {
+                respond_404(&stream, response_headers);
+                break;
+            }
         }
-        let data = &raw_request[(bodyStartIndex as usize)..];
         
-        let newFileDir  = format!("{}{}", BASE_DIR, UPLOAD_FILE_PATH);
-        
-        let fileNameFromHeader = if headers.contains_key("filename") {headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
-        let fileName = format!("{}{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos(), fileNameFromHeader);
-        let fileExt  = get_extension(&fileName);
-        
-        let newFileName = format!("{}{}", &sha256(fileName.as_bytes())[..24], &fileExt);
-        let newFilePath = format!("{}/{}", newFileDir, newFileName);
-        
-        dbg!(&fileName, &fileExt, &newFileName, &newFilePath);
-        
-        fs::create_dir_all(&newFileDir).unwrap();
-        let mut newFile = File::create(newFilePath).unwrap();
-        newFile.write_all(&data);
-        
-        let encryptedSegment = encrypt_fileName(
-            &format!("{}/{}", UPLOAD_FILE_PATH, newFileName),
-            AES_KEY
-        );
-        
-        let encryptedURL = format!("localhost:{}/e/{}", PORT, encryptedSegment);
-        let finalURL = encryptedURL.as_bytes();
-        
-        response_headers.insert("Content-Length".to_string(), finalURL.len().to_string());
-        make_response(&stream, &Response{
-            code: 200,
-            code_name: "OK",
-            headers: response_headers
-        });
-        stream.write(&finalURL);
-        break;
-    },
-    _ => ()
+    }, _ => ()
     
     }
     
