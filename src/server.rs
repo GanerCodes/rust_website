@@ -18,14 +18,28 @@ static Body_delim_pattern: [u8; 4] = [13, 10, 13, 10];
 
 pub static MIME_types: SyncLazy<HashMap::<String, String>> = SyncLazy::new(|| {
     let mut MIMEs = HashMap::<String, String>::new();
-    let mut MIME_types_file = fs::File::open(&MIME_FILE_PATH).unwrap();
-    let mut MIME_types_reader = BufReader::new(MIME_types_file);
+    let MIME_types_file = fs::File::open(&MIME_FILE_PATH).unwrap();
+    let MIME_types_reader = BufReader::new(MIME_types_file);
     for line in MIME_types_reader.lines() {
-        let mut lineRaw = line.unwrap();
+        let lineRaw = line.unwrap();
         let mut lineSplit = lineRaw.splitn(2, ", ");
         MIMEs.insert(lineSplit.next().unwrap().to_string(), lineSplit.next().unwrap().to_string());
     }
     MIMEs
+});
+pub static response_codes: SyncLazy<HashMap::<u16, String>> = SyncLazy::new(|| {
+    let mut codeMapping = HashMap::<u16, String>::new();
+    let response_codes_file = fs::File::open(&CODES_FILE_PATH).unwrap();
+    let response_codes_reader = BufReader::new(response_codes_file);
+    for line in response_codes_reader.lines() {
+        let lineRaw = line.unwrap();
+        let mut lineSplit = lineRaw.splitn(2, ", ");
+        codeMapping.insert(
+            lineSplit.next().unwrap().to_string().parse::<u16>().unwrap(),
+            lineSplit.next().unwrap().to_string()
+        );
+    }
+    codeMapping
 });
 
 pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<HashMap::<String, String>>>) {
@@ -151,7 +165,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 break;
             }
         }else{
-            respond_404(&stream, response_headers);
+            respondCodeText(&stream, response_headers, 404);
             break;
         }
     }
@@ -162,7 +176,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         let mut decryptedPathRaw = AES_Decrypt(&cutPathHexDecoded, AES_KEY);
         
         if decryptedPathRaw.len() == 0 {
-            respond_404(&stream, response_headers);
+            respondCodeText(&stream, response_headers, 404);
             break;
         }
         
@@ -182,7 +196,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 HTTP_Target = path;
                 encryptedDir = true;
             }, _ => {
-                respond_404(&stream, response_headers);
+                respondCodeText(&stream, response_headers, 404);
                 break;
             }
         }
@@ -195,7 +209,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         if !DTAsafe(&pathString, &BASE_DIR) {
             make_response(&stream, &Response {
                 code: 200,
-                code_name: "OK",
                 headers: response_headers
             });
             stream.write(b"<script>location.href = 'https://youtu.be/dQw4w9WgXcQ';</script>");
@@ -227,7 +240,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         videoFile.read(&mut videoFileBuffer).unwrap();
                         make_response(&stream, &Response {
                             code: 206,
-                            code_name: "Partial Content",
                             headers: response_headers
                         });
                         stream.write(&videoFileBuffer);
@@ -237,7 +249,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         response_headers.insert("Content-Length".to_string(), fileSizeString);
                         write_file(&stream, &Response {
                             code: 200,
-                            code_name: "OK",
                             headers: response_headers },
                             &filePath
                         );
@@ -245,7 +256,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     break;
                 }else{
                     if(HTTP_Target.chars().last().unwrap() != '/') {
-                        send_redirect(&stream, &(format!("{}/", &HTTP_Target)).to_string());
+                        send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Target)).to_string());
                         break;
                     }
                     let mut indexPath = filePath.clone();
@@ -253,7 +264,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     if indexPath.exists() {
                         write_file(&stream, &Response {
                             code: 200,
-                            code_name: "OK",
                             headers: response_headers
                         }, &indexPath);
                     } else {
@@ -270,7 +280,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         dirListingHtml.push_str("</body>\n</html>");
                         make_response(&stream, &Response{
                             code: 200,
-                            code_name: "OK",
                             headers: response_headers
                         });
                         stream.write(dirListingHtml.as_bytes());
@@ -278,7 +287,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 }
             },
             Err(_) => {
-                respond_404(&stream, response_headers);
+                respondCodeText(&stream, response_headers, 404);
                 break;
             }
         }
@@ -287,7 +296,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         match HTTP_Target.as_str() {
             "/upload" => {
                 if bodyStartIndex >= raw_request.len() {
-                    respond_400(&stream, response_headers);
+                    respondCodeText(&stream, response_headers, 400);
                     break;
                 }
                 let data = &raw_request[(bodyStartIndex as usize)..];
@@ -318,7 +327,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 response_headers.insert("Content-Length".to_string(), finalURL.len().to_string());
                 make_response(&stream, &Response{
                     code: 200,
-                    code_name: "OK",
                     headers: response_headers
                 });
                 stream.write(&finalURL);
@@ -331,7 +339,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let url_hash = &sha256(base_url.as_bytes())[..16];
                     make_response(&stream, &Response{
                         code: 200,
-                        code_name: "OK",
                         headers: response_headers
                     });
                     if URL_Shorts.contains_key(url_hash) {
@@ -348,12 +355,12 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         stream.write(format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, SHORTHAND_PATH_PREFIX, url_hash).as_bytes());
                     }
                 }else{
-                    respond_404(&stream, response_headers);
+                    respondCodeText(&stream, response_headers, 404);
                     break;
                 }
             },
             _ => {
-                respond_404(&stream, response_headers);
+                respondCodeText(&stream, response_headers, 404);
                 break;
             }
         }

@@ -1,5 +1,5 @@
 use crate::Rust_AES::encrypt::AES_Encrypt;
-use crate::server::{MIME_types};
+use crate::server::{MIME_types, response_codes};
 
 use std::lazy::SyncLazy;
 use std::{fmt, thread, str, fs};
@@ -16,15 +16,14 @@ pub fn printMap(mut map: HashMap::<String, String>) {
     }
 }
 
-pub struct Response<'a> {
-    pub code: i32,
-    pub code_name: &'a str,
+pub struct Response<> {
+    pub code: u16,
     pub headers: HashMap<String, String>
 }
 
 pub fn make_response(mut stream: &TcpStream, response: &Response) {
     let mut request = String::from("HTTP/1.1 ");
-    write!(request, "{} {}\r\n", &response.code, &response.code_name);
+    write!(request, "{} {}\r\n", &response.code, response_codes.get(&response.code).unwrap());
     for (header, value) in response.headers.iter() {
         request.push_str(&header);
         request.push_str(": ");
@@ -43,7 +42,6 @@ pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &Pa
         }, Err(e) => {
             make_response(&stream, &Response {
                 code: 418,
-                code_name: "I'm a teapot",
                 headers: response.headers.clone()
             });
             stream.write(b"I'm a teapot :>");
@@ -52,7 +50,7 @@ pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &Pa
 }
 
 pub fn send_redirect(mut stream: &TcpStream, mut newLoc: &String) {
-    stream.write(format!("HTTP/1.1 301 Moved Permanently\nLocation: {}", newLoc).as_bytes());
+    stream.write(format!("HTTP/1.1 301 Moved Permanently\r\nLocation: {}\r\n\r\n", newLoc).as_bytes());
 }
 
 pub fn formatPath(mut path: &str) -> String {
@@ -121,10 +119,7 @@ pub fn DTAsafe(mut path: &str, mut base: &str) -> bool {
 }
 
 pub fn byte_hex_to_u8(mut c: u8) -> u8 { //assumed safe input
-    if c < 58 {
-        return c - 48;
-    }
-    return c - 55;
+    return if c < 58 {c - 48} else {c - 55};
 }
 
 pub fn decode_url(mut url: &str) -> String { //Redo this at some point more efficently
@@ -175,12 +170,10 @@ pub fn get_extension(mut path: &str) -> String {
         match c {
             '/' => {
                 break;
-            },
-            '.' => {
+            }, '.' => {
                 result.push('.');
                 break;
-            },
-            h => {
+            }, h => {
                 result.push(h);
             }
         }
@@ -239,25 +232,19 @@ pub fn bytesToHex(mut digits: Vec<u8>) -> String {
     result
 }
 
-/* pub fn printBinary(n: u32) {
-    println!("{}", &format!("{:#034b}", &n)[2..]);
-} */
-
-pub fn respond_404(mut stream: &TcpStream, response_headers: HashMap<String, String>) {
+pub fn respond(mut stream: &TcpStream, response_headers: HashMap<String, String>, code: u16) {
     make_response(&stream, &Response {
-        code: 404,
-        code_name: "Not Found",
+        code: code,
         headers: response_headers
     });
-    stream.write(b"404");
 }
-pub fn respond_400(mut stream: &TcpStream, response_headers: HashMap<String, String>) {
+
+pub fn respondCodeText(mut stream: &TcpStream, response_headers: HashMap<String, String>, code: u16) {
     make_response(&stream, &Response {
-        code: 400,
-        code_name: "Bad Request",
+        code: code,
         headers: response_headers
     });
-    stream.write(b"400");
+    stream.write(code.to_string().as_bytes());
 }
 
 pub fn encrypt_fileName(mut fileName: &String, key: [u8; 16]) -> String {
