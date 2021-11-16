@@ -1,4 +1,5 @@
 files/*
 src/URL_shortens.kvm
 src/main.exe
+src/main.pdb
 src/config.rs
