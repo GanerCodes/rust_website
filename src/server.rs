@@ -47,8 +47,12 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     stream.set_read_timeout(Some(Duration::from_millis(150)));
     stream.read_to_end(&mut raw_request);
     
-    // println!("{}", String::from_utf8_lossy(&mut raw_request));
-        
+    let request_length = (&raw_request).len();
+    if request_length == 0 { //why does this happen so much
+        println!("Empty request moment");
+        return;
+    }
+    
     let mut headers = HashMap::<String, String>::new();
     let mut HTTP_Identifier = String::from("");
     let mut HTTP_Method     = String::from("");
@@ -60,7 +64,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     
     let mut bodyDelimIndex = 0;
     let mut editMode = 0;
-    for i in 0..(&raw_request).len() {
+    for i in 0..request_length {
         let c = char::from((&raw_request)[i]);
         if (&raw_request)[i] == Body_delim_pattern[bodyDelimIndex] {
             if bodyDelimIndex == 2 {
@@ -80,8 +84,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         editMode = 1;
                     }, 2 => {
                         headers.insert(HeaderName.clone().trim().to_string(), HeaderValue.clone().trim().to_string());
-                        HeaderName  = String::from("");
-                        HeaderValue = String::from("");
+                        HeaderName  = "".to_string();
+                        HeaderValue = "".to_string();
                         editMode = 1;
                     }, _ => ()
                 }
@@ -103,11 +107,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             }
         }
     }
-    if HTTP_Identifier.len() == 0 {
-        println!("Could not read data.");
-        stream.write(b"HTTP/1.1 200\nOK\nConnection: Closed\n\nHELP???");
-        return;
-    }
     
     editMode = 0;
     for c in HTTP_Identifier.chars() {
@@ -125,16 +124,16 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     HTTP_Target = decode_url(&HTTP_Target);
         
     /*TODO:
+        discord image showing
+        unretard the code
         gallery view, with comics [as well as supporting video and audio] with multiple views [scroll, page-by-page [with mouse click side turning direction]]
-        chunked file delivery?
-        https?
         path grepping file, move settings into json, etc
     */
     
     let mut response_headers = HashMap::<String, String>::new();
-    response_headers.insert("Server"      .to_string(), "amogus"   .to_string());
+    response_headers.insert("Server"      .to_string(), "Gone, reduced to atoms".to_string());
     response_headers.insert("Content-Type".to_string(), "text/html".to_string());
-    response_headers.insert("Connection"  .to_string(), "Closed"   .to_string());
+    response_headers.insert("Connection"  .to_string(), "Closed".to_string());
     
     let mut pathString = formatPath(&HTTP_Target);
     if pathString.chars().last().unwrap() != '/' { //Enforce prefix detection
@@ -143,26 +142,26 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     
     println!("{} {} {}", HTTP_Version, HTTP_Method, HTTP_Target);
     
-    loop {
+    'big: loop {
     let mut shorthandDir = false;
     let mut encryptedDir = false;
     
     if pathString.starts_with(SHORTHAND_PATH_PREFIX) {
-        let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
         let cutPath = (&pathString[3..]).trim_matches('/');
+        let URL_Shorts = URL_Shorts_shared.lock().unwrap();
         if URL_Shorts.contains_key(cutPath) { //I need to figure out a way to do better string pattern stuff
-            let redirPath = URL_Shorts.get(cutPath).unwrap().to_string();
-            for i in WEBSITE_PREFIXES {
-                if redirPath.starts_with(i) {
-                    pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
-                    HTTP_Target = pathString.clone();
-                    shorthandDir = true;
-                    break;
+            'shorthand: loop {
+                let redirPath = URL_Shorts.get(cutPath).unwrap().to_string();
+                for i in WEBSITE_PREFIXES {
+                    if redirPath.starts_with(i) {
+                        pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
+                        HTTP_Target = pathString.clone();
+                        shorthandDir = true;
+                        break 'shorthand;
+                    }
                 }
-            }
-            if !shorthandDir {
                 send_redirect(&stream, &redirPath);
-                break;
+                break 'big;
             }
         }else{
             respondCodeText(&stream, response_headers, 404);
@@ -171,9 +170,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     }
     
     if pathString.starts_with(ENCRYPTED_PATH_PREFIX) { //Secret filepaths
-        let cutPath = &pathString[3..];
+        let cutPath = &pathString[ENCRYPTED_PATH_PREFIX.len()..];
         let mut cutPathHexDecoded = hexToBytes(String::from(cutPath).as_bytes().to_vec());
         let mut decryptedPathRaw = AES_Decrypt(&cutPathHexDecoded, AES_KEY);
+        
         
         if decryptedPathRaw.len() == 0 {
             respondCodeText(&stream, response_headers, 404);
@@ -185,9 +185,9 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         for i in (&decryptedPathRaw).into_iter().rev() {
             if *i == 0 {
                 k += 1;
-                continue;
+            }else{
+                break;
             }
-            break;
         }
         let mut trimmedDecryptedPath = &decryptedPathRaw[..(decryptedPathRaw.len() - k)];
         
@@ -255,7 +255,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     }
                     break;
                 }else{
-                    if(HTTP_Target.chars().last().unwrap() != '/') {
+                    if HTTP_Target.chars().last().unwrap() != '/' && !(shorthandDir || encryptedDir) {
                         send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Target)).to_string());
                         break;
                     }
@@ -268,13 +268,18 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         }, &indexPath);
                     } else {
                         let mut dirListingHtml = String::from("<html>\n<head>\n<style>\nhtml {\ncolor:white;\nbackground-color:black;\n}\n</style>\n</head><body>");
-                        for fileEntry in fs::read_dir(filePath).unwrap() {
+                        for fileEntry in fs::read_dir(filePath.clone()).unwrap() {
                             let fileName = fileEntry.unwrap().file_name().into_string().unwrap();
-                            let mut file_URL_Path = if encryptedDir {
-                                encrypt_fileName(&(String::from("/e/") + &fileName), AES_KEY)
-                            } else {
-                                fileName.clone()
-                            };
+                            let relative_name = format!("{}/{}", pathString.trim_start_matches(&format!("{}/", BASE_DIR)), fileName);
+                            let mut file_URL_Path = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME,
+                                if encryptedDir {
+                                    format!("{}{}", ENCRYPTED_PATH_PREFIX,
+                                        encrypt_fileName(&format!("/{}", relative_name), AES_KEY)
+                                    )
+                                } else {
+                                    format!("/{}", relative_name.clone())
+                                }
+                            );
                             dirListingHtml.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &file_URL_Path, &fileName));
                         }
                         dirListingHtml.push_str("</body>\n</html>");
@@ -293,6 +298,11 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     },
     "POST" => {
+        if !headers.contains_key("access") || headers.get("access").unwrap() != ACCESS_PASSWORD {
+            respondCodeText(&stream, response_headers, 404);
+            break;
+        }
+        
         match HTTP_Target.as_str() {
             "/upload" => {
                 if bodyStartIndex >= raw_request.len() {
@@ -309,8 +319,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 
                 let newFileName = format!("{}{}", &sha256(fileName.as_bytes())[..24], &fileExt);
                 let newFilePath = format!("{}/{}", newFileDir, newFileName);
-                
-                // dbg!(&fileName, &fileExt, &newFileName, &newFilePath);
                 
                 fs::create_dir_all(&newFileDir).unwrap();
                 let mut newFile = File::create(newFilePath).unwrap();
@@ -335,25 +343,25 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             "/shortenURL" => {
                 if headers.contains_key("url") {
                     let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
-                    let base_url = headers.get("url").unwrap();
+                    let passed_url = headers.get("url").unwrap();
+                    let isFilepath = headers.contains_key("localpath");
+                    let base_url = if isFilepath {
+                        format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encrypt_fileName(passed_url, AES_KEY))
+                    } else {
+                        passed_url.to_string()
+                    };
+                    
                     let url_hash = &sha256(base_url.as_bytes())[..16];
                     make_response(&stream, &Response{
                         code: 200,
                         headers: response_headers
                     });
-                    if URL_Shorts.contains_key(url_hash) {
-                        stream.write(URL_Shorts.get(url_hash).unwrap().as_bytes());
-                    }else{
+                    if !URL_Shorts.contains_key(url_hash) {
                         URL_Shorts.insert(url_hash.to_string(), (&base_url).to_string());
-                        //write to url file
-                        let mut shorthand_file = OpenOptions::new()
-                        .write(true)
-                        .append(true)
-                        .open(SHORTHAND_FILE_PATH)
-                        .unwrap();
+                        let mut shorthand_file = OpenOptions::new().write(true).append(true).open(SHORTHAND_FILE_PATH).unwrap();
                         writeln!(shorthand_file, "{}:{}\n", url_hash, base_url).unwrap();
-                        stream.write(format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, SHORTHAND_PATH_PREFIX, url_hash).as_bytes());
                     }
+                    stream.write(format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, SHORTHAND_PATH_PREFIX, url_hash).as_bytes());
                 }else{
                     respondCodeText(&stream, response_headers, 404);
                     break;
@@ -367,8 +375,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         
     }, _ => ()
     
-    }
+    } //Match protocols
     
-    break;
-    }
+    break; } //Janky breakable loop
 }
