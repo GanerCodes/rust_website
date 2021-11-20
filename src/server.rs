@@ -175,7 +175,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         let cutPath = &pathString[ENCRYPTED_PATH_PREFIX.len()..];
         let mut cutPathHexDecoded = hexToBytes(String::from(cutPath).as_bytes().to_vec());
         let mut decryptedPathRaw = AES_Decrypt(&cutPathHexDecoded, AES_KEY);
-        dbg!(decryptedPathRaw);
+        dbg!(&decryptedPathRaw);
         if decryptedPathRaw.len() == 0 {
             respondCodeText(&stream, response_headers, 404);
             break;
