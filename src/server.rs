@@ -146,7 +146,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     let mut shorthandDir = false;
     let mut encryptedDir = false;
     
-    dbg!(&pathString);
     if pathString.starts_with(SHORTHAND_PATH_PREFIX) {
         let cutPath = (&pathString[3..]).trim_matches('/');
         let URL_Shorts = URL_Shorts_shared.lock().unwrap();
@@ -170,12 +169,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     }
     
-    dbg!(&pathString);
     if pathString.starts_with(ENCRYPTED_PATH_PREFIX) { //Secret filepaths
         let cutPath = &pathString[ENCRYPTED_PATH_PREFIX.len()..];
         let mut cutPathHexDecoded = hexToBytes(String::from(cutPath).as_bytes().to_vec());
         let mut decryptedPathRaw = AES_Decrypt(&cutPathHexDecoded, AES_KEY);
-        dbg!(&decryptedPathRaw);
         if decryptedPathRaw.len() == 0 {
             respondCodeText(&stream, response_headers, 404);
             break;
@@ -203,10 +200,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     }
     
-    dbg!(&pathString);
     pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Target));
     
-    dbg!(&pathString);
     match (&HTTP_Method).as_str() {
     "GET" => {
         if !DTAsafe(&pathString, &BASE_DIR) {
@@ -348,13 +343,11 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
                     let passed_url = headers.get("url").unwrap();
                     let isFilepath = headers.contains_key("localpath");
-                    dbg!(&passed_url);
                     let base_url = if isFilepath {
                         format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encrypt_fileName(passed_url, AES_KEY))
                     } else {
                         passed_url.to_string()
                     };
-                    dbg!(&base_url);
                     
                     let url_hash = &sha256(base_url.as_bytes())[..16];
                     make_response(&stream, &Response{
