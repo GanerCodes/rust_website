@@ -348,11 +348,13 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
                     let passed_url = headers.get("url").unwrap();
                     let isFilepath = headers.contains_key("localpath");
+                    dbg!(&passed_url);
                     let base_url = if isFilepath {
                         format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encrypt_fileName(passed_url, AES_KEY))
                     } else {
                         passed_url.to_string()
                     };
+                    dbg!(&base_url);
                     
                     let url_hash = &sha256(base_url.as_bytes())[..16];
                     make_response(&stream, &Response{
