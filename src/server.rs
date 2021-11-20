@@ -146,7 +146,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     let mut shorthandDir = false;
     let mut encryptedDir = false;
     
-    dbg!(&pathString);
     if pathString.starts_with(SHORTHAND_PATH_PREFIX) {
         let cutPath = (&pathString[3..]).trim_matches('/');
         let URL_Shorts = URL_Shorts_shared.lock().unwrap();
@@ -169,7 +168,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             break;
         }
     }
-    dbg!(&pathString);
     
     if pathString.starts_with(ENCRYPTED_PATH_PREFIX) { //Secret filepaths
         let cutPath = &pathString[ENCRYPTED_PATH_PREFIX.len()..];
@@ -202,11 +200,9 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             }
         }
     }
-    dbg!(&pathString);
     
     pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Target));
     
-    dbg!(&pathString);
     match (&HTTP_Method).as_str() {
     "GET" => {
         if !DTAsafe(&pathString, &BASE_DIR) {
