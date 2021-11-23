@@ -48,95 +48,54 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     stream.read_to_end(&mut raw_request);
     
     let request_length = (&raw_request).len();
-    if request_length == 0 { //why does this happen so much
-        println!("Empty request moment");
-        return;
-    }
+    if request_length == 0 { return; } //why does this happen so much?
     
-    let mut headers    = HashMap::<String, String>::new();
-    let mut parameters = HashMap::<String, String>::new();
-    let mut HTTP_Identifier = String::from("");
-    let mut HTTP_Method     = String::from("");
-    let mut HTTP_URI        = String::from("");
-    let mut HTTP_Version    = String::from("");
-    let mut flagName      = String::from("");
-    let mut flagValue     = String::from("");
+    let mut HTTP_Headers    = HashMap::<String, String>::new(); // {"User-Agent": "Various Personal Info"}
+    let mut HTTP_Parameters = HashMap::<String, String>::new(); // {"foo": "bar"}
+    let mut HTTP_Identifier = String::from(""); // First line of request
+    let mut HTTP_Method     = String::from(""); // GET, POST, etc
+    let mut HTTP_Heads      = String::from(""); // accept: *\*\r\ncache-control: no-cache
+    let mut HTTP_Params     = String::from(""); // ?foo=bar&amogus=sus
+    let mut HTTP_Version    = String::from(""); // HTTP/1.1
+    let mut HTTP_Target     = String::from(""); // 
+    let mut HTTP_Path       = String::from(""); //
+    let mut HTTP_Body       = Vec::<u8>::new(); // Binary data
+    
+    let mut flagName        = String::from("");
+    let mut flagValue       = String::from("");
     let mut bodyStartIndex: usize = 0;
     
     let mut bodyDelimIndex = 0;
     let mut editMode = 0;
-    for i in 0..request_length {
-        let c = char::from((&raw_request)[i]);
-        if (&raw_request)[i] == Body_delim_pattern[bodyDelimIndex] {
-            if bodyDelimIndex == 2 {
-                bodyStartIndex = i + 2;
-                break;
-            }else{
-                bodyDelimIndex += 1;
-            }
-        }else{
-            bodyDelimIndex = 0;
-        }
-        
-        match c {
-            '\n' => {
-                match editMode {
-                    0 if HTTP_Identifier.len() > 0 => {
-                        editMode = 1;
-                    }, 2 => {
-                        headers.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
-                        flagName  = "".to_string();
-                        flagValue = "".to_string();
-                        editMode = 1;
-                    }, _ => ()
-                }
-            },
-            '\r' => (),
-            _ => {
-                match editMode {
-                    0 => HTTP_Identifier.push(c),
-                    1 => {
-                        if c == ':' {
-                            editMode = 2;
-                        }else{
-                            flagName.push_str(&c.to_lowercase().to_string());
-                        }
-                    },
-                    2 => flagValue.push(c),
-                    _ => ()
-                }
-            }
-        }
-    }
+    
+    let request_string = String::from_utf8_lossy(&raw_request);
+    
+    let mut spl_1 = request_string.splitn(2, "\r\n");
+    let mut spl_2 = request_string.splitn(2, "\r\n\r\n");
+    
+    HTTP_Identifier = spl_1.next().unwrap().to_string();
+    HTTP_Heads = spl_1.next().unwrap().to_string();
+    HTTP_Body = spl_2.nth(1).unwrap().as_bytes().to_vec();
+    
+    HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
+    
+    let mut Identifer_itter = HTTP_Identifier.split(' ');
+    HTTP_Method  = Identifer_itter.next().unwrap().to_string();
+    HTTP_Target  = Identifer_itter.next().unwrap().to_string();
+    HTTP_Version = Identifer_itter.next().unwrap().to_string();
     
     editMode = 0;
-    for c in HTTP_Identifier.chars() {
-        if c == ' ' && editMode < 2 {
-            editMode += 1
-        }else{
-            match editMode {
-                0 => HTTP_Method .push(c),
-                1 => HTTP_URI    .push(c),
-                2 => HTTP_Version.push(c),
-                _ => ()
-            }
-        }
-    }
-    
-    let mut HTTP_Target = String::from("");
-    let mut HTTP_Params = String::from("");
-    
-    if HTTP_URI.contains('?') {
+    if HTTP_Target.contains('?') {
         editMode = 0;
-        let loc = HTTP_URI.find('?').unwrap();
-        HTTP_Target = HTTP_URI[..loc].to_string();
-        HTTP_Params = HTTP_URI[(loc+1)..].to_string();
-        parameters = hashmapFromDelims(&HTTP_Params, '=', '&');
+        let loc = HTTP_Target.find('?').unwrap();
+        HTTP_Path   = HTTP_Target[..loc].to_string();
+        HTTP_Params = HTTP_Target[(loc+1)..].to_string();
+        HTTP_Parameters = hashmapFromDelims(&HTTP_Params, '=', '&');
     }else{
-        HTTP_Target = HTTP_URI;
+        HTTP_Path = HTTP_Target.clone();
     }
     
-    HTTP_Target = decode_url(&HTTP_Target);
+    HTTP_Path   = decode_url(&HTTP_Path  );
         
     /*TODO:
         discord image showing
@@ -150,12 +109,12 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     response_headers.insert("Content-Type".to_string(), "text/html".to_string());
     response_headers.insert("Connection"  .to_string(), "Closed".to_string());
     
-    let mut pathString = formatPath(&HTTP_Target);
+    let mut pathString = formatPath(&HTTP_Path);
     if pathString.chars().last().unwrap() != '/' { //Enforce prefix detection
         pathString.push('/');
     }
     
-    println!("{} {} {} {}", HTTP_Version, HTTP_Method, HTTP_Target, HTTP_Params);
+    println!("{} {} {}", &HTTP_Version, &HTTP_Method, &HTTP_Target);
     
     'big: loop {
     let mut shorthandDir = false;
@@ -170,7 +129,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 for i in WEBSITE_PREFIXES {
                     if redirPath.starts_with(i) {
                         pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
-                        HTTP_Target = pathString.clone();
+                        HTTP_Path   = pathString.clone();
                         shorthandDir = true;
                         break 'shorthand;
                     }
@@ -206,7 +165,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         
         match String::from_utf8(trimmedDecryptedPath.to_vec()) {
             Ok(path) => {
-                HTTP_Target = path;
+                HTTP_Path   = path;
                 encryptedDir = true;
             }, _ => {
                 respondCodeText(&stream, response_headers, 404);
@@ -215,7 +174,20 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     }
     
-    pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Target));
+    pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Path  ));
+    
+    dbg!(
+        &HTTP_Body,
+        &HTTP_Headers,
+        &HTTP_Heads,
+        &HTTP_Identifier,
+        &HTTP_Method,
+        &HTTP_Parameters,
+        &HTTP_Params,
+        &HTTP_Target,
+        &HTTP_Path  ,
+        &HTTP_Version
+    );
     
     match (&HTTP_Method).as_str() {
     "GET" => {
@@ -224,7 +196,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 code: 200,
                 headers: response_headers
             });
-            stream.write(b"<script>location.href = 'https://youtu.be/dQw4w9WgXcQ';</script>");
+            stream.write(b"<script>location.href='https://youtu.be/dQw4w9WgXcQ';</script>");
             break;
         }
         
@@ -232,6 +204,19 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         match filePath.canonicalize() {
             Ok(filePath) => {
                 if filePath.is_file() {
+                    if HTTP_Parameters.contains_key("e") {
+                        make_response(&stream, &Response{
+                            code: 200,
+                            headers: response_headers
+                        });
+                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path);
+                        stream.write(format!( //this is a good way to do this
+                            "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/></head><body><image src=\"{}\"></image></body><html>",
+                            newURL, newURL
+                        ).as_bytes());
+                        break;
+                    }
+                    
                     let mut MIME = get_MIME_from_filename(&pathString);
                     response_headers.insert("Content-Type".to_string(), MIME.clone());
                     response_headers.insert("Accept-Ranges".to_string(), "bytes".to_string());
@@ -239,9 +224,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let fileMetadata = fs::metadata(&filePath).unwrap();
                     let fileSize = fileMetadata.len();
                     let fileSizeString = fileSize.to_string();
+                    
                     let rangeKey = "range".to_string();
-                    if headers.contains_key(&rangeKey) {
-                        let contentRange = parseRangeHeader(&headers.get(&rangeKey).unwrap(), fileSize);
+                    if HTTP_Headers.contains_key(&rangeKey) {
+                        let contentRange = parseRangeHeader(&HTTP_Headers.get(&rangeKey).unwrap(), fileSize);
                         let rangeHeader = format!("bytes {}-{}/{}", contentRange.0, contentRange.1, fileSize);
                         let byteReadCount = (contentRange.1 - contentRange.0) + 1;
                         response_headers.insert("Content-Range".to_string(), rangeHeader);
@@ -257,19 +243,19 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         });
                         stream.write(&videoFileBuffer);
                         break;
-                    }else{
-                        response_headers.insert("Content-Range".to_string(), format!("bytes {}-{}/{}", 0, fileSize - 1, fileSize));
-                        response_headers.insert("Content-Length".to_string(), fileSizeString);
-                        write_file(&stream, &Response {
-                            code: 200,
-                            headers: response_headers },
-                            &filePath
-                        );
                     }
+                    
+                    response_headers.insert("Content-Range".to_string(), format!("bytes {}-{}/{}", 0, fileSize - 1, fileSize));
+                    response_headers.insert("Content-Length".to_string(), fileSizeString);
+                    write_file(&stream, &Response {
+                        code: 200,
+                        headers: response_headers },
+                        &filePath
+                    );
                     break;
                 }else{
-                    if HTTP_Target.chars().last().unwrap() != '/' && !(shorthandDir || encryptedDir) {
-                        send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Target)).to_string());
+                    if HTTP_Path  .chars().last().unwrap() != '/' && !(shorthandDir || encryptedDir) {
+                        send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path  )).to_string());
                         break;
                     }
                     let mut indexPath = filePath.clone();
@@ -283,14 +269,14 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         let mut dirListingHtml = String::from("<html>\n<head>\n<style>\nhtml {\ncolor:white;\nbackground-color:black;\n}\n</style>\n</head><body>");
                         for fileEntry in fs::read_dir(filePath.clone()).unwrap() {
                             let fileName = fileEntry.unwrap().file_name().into_string().unwrap();
-                            let relative_name = format!("{}/{}", pathString.trim_start_matches(&format!("{}/", BASE_DIR)), fileName);
                             let mut file_URL_Path = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME,
                                 if encryptedDir {
+                                    let relative_name = format!("{}/{}", pathString.trim_start_matches(&format!("{}/", BASE_DIR)), fileName);
                                     format!("{}{}", ENCRYPTED_PATH_PREFIX,
                                         encrypt_fileName(&format!("/{}", relative_name), AES_KEY)
                                     )
                                 } else {
-                                    format!("/{}", relative_name.clone())
+                                    format!("{}{}", HTTP_Path  , fileName)
                                 }
                             );
                             dirListingHtml.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &file_URL_Path, &fileName));
@@ -311,22 +297,24 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     },
     "POST" => {
-        if !headers.contains_key("access") || headers.get("access").unwrap() != ACCESS_PASSWORD {
+        if !HTTP_Headers.contains_key("access") || HTTP_Headers.get("access").unwrap() != ACCESS_PASSWORD {
             respondCodeText(&stream, response_headers, 404);
             break;
         }
         
-        match HTTP_Target.as_str() {
+        match HTTP_Path  .as_str() {
             "/upload" => {
-                if bodyStartIndex >= raw_request.len() {
-                    respondCodeText(&stream, response_headers, 400);
+                if HTTP_Body.len() == 0 {
+                    make_response(&stream, &Response{
+                        code: 400,
+                        headers: response_headers
+                    });
                     break;
                 }
-                let data = &raw_request[(bodyStartIndex as usize)..];
                 
                 let newFileDir  = format!("{}{}", BASE_DIR, UPLOAD_FILE_PATH);
                 
-                let fileNameFromHeader = if headers.contains_key("filename") {headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
+                let fileNameFromHeader = if HTTP_Headers.contains_key("filename") {HTTP_Headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
                 let fileName = format!("{}{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos(), fileNameFromHeader);
                 let fileExt  = get_extension(&fileName);
                 
@@ -335,7 +323,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 
                 fs::create_dir_all(&newFileDir).unwrap();
                 let mut newFile = File::create(newFilePath).unwrap();
-                newFile.write_all(&data);
+                newFile.write_all(&HTTP_Body);
                 
                 let encryptedSegment = encrypt_fileName(
                     &format!("{}/{}", UPLOAD_FILE_PATH, newFileName),
@@ -354,10 +342,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 break;
             },
             "/shortenURL" => {
-                if headers.contains_key("url") {
+                if HTTP_Headers.contains_key("url") {
                     let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
-                    let passed_url = headers.get("url").unwrap();
-                    let isFilepath = headers.contains_key("localpath");
+                    let passed_url = HTTP_Headers.get("url").unwrap();
+                    let isFilepath = HTTP_Headers.contains_key("localpath");
                     let base_url = if isFilepath {
                         format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encrypt_fileName(passed_url, AES_KEY))
                     } else {

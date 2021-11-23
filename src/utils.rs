@@ -255,17 +255,17 @@ pub fn hashmapFromDelims(input: &String, del: char, sep: char) -> HashMap::<Stri
     let mut map = HashMap::<String, String>::new();
     let mut flagName  = String::from("");
     let mut flagValue = String::from("");
-    let mut state = 0;
+    let mut valueEdit = false;
     for c in input.chars() {
         match c {
-            c if c == del => { state = 1; },
+            c if c == del => { valueEdit = true; },
             c if c == sep => {
                 map.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
                 flagName  = "".to_string();
                 flagValue = "".to_string();
-                state = 0;
+                valueEdit = false;
             }, _ => {
-                if state == 0 {
+                if valueEdit == false {
                     flagName.push(c);
                 }else{
                     flagValue.push(c);
