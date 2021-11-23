@@ -131,7 +131,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 let redirPath = URL_Shorts.get(cutPath).unwrap().to_string();
                 for i in WEBSITE_PREFIXES {
                     if redirPath.starts_with(i) {
-                        dbg(&redirPath);
+                        dbg!(&redirPath);
                         pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
                         HTTP_Path   = pathString.clone();
                         shorthandDir = true;
