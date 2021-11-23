@@ -209,7 +209,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         });
                         let newURL = format!("{}://{}{}?e", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path);
                         stream.write(format!( //this is a good way to do this
-                            "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/></head><body><image src=\"{}\"></image></body><html>",
+                            "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/><meta name=\"twitter:card\" content=\"summary_large_image\"></head><body><image src=\"{}\"></image></body><html>",
                             newURL, newURL
                         ).as_bytes());
                         break;
