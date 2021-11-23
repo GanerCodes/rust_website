@@ -82,6 +82,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 HTTP_Body = (&raw_request[i..]).to_vec();
             }
             j += 1
+        }else{
+            j = 0;
         }
     }
     
