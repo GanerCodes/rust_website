@@ -250,3 +250,31 @@ pub fn respondCodeText(mut stream: &TcpStream, response_headers: HashMap<String,
 pub fn encrypt_fileName(mut fileName: &String, key: [u8; 16]) -> String {
     bytesToHex(AES_Encrypt(fileName.as_bytes(), key).to_vec())
 }
+
+pub fn hashmapFromDelims(input: &String, del: char, sep: char) -> HashMap::<String, String> {
+    let mut map = HashMap::<String, String>::new();
+    let mut flagName  = String::from("");
+    let mut flagValue = String::from("");
+    let mut state = 0;
+    for c in input.chars() {
+        match c {
+            c if c == del => { state = 1; },
+            c if c == sep => {
+                map.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
+                flagName  = "".to_string();
+                flagValue = "".to_string();
+                state = 0;
+            }, _ => {
+                if state == 0 {
+                    flagName.push(c);
+                }else{
+                    flagValue.push(c);
+                }
+            }
+        }
+    }
+    if flagName.len() > 0 {
+        map.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
+    }
+    map
+}

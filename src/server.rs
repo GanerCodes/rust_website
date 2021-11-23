@@ -53,13 +53,14 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         return;
     }
     
-    let mut headers = HashMap::<String, String>::new();
+    let mut headers    = HashMap::<String, String>::new();
+    let mut parameters = HashMap::<String, String>::new();
     let mut HTTP_Identifier = String::from("");
     let mut HTTP_Method     = String::from("");
-    let mut HTTP_Target     = String::from("");
+    let mut HTTP_URI        = String::from("");
     let mut HTTP_Version    = String::from("");
-    let mut HeaderName      = String::from("");
-    let mut HeaderValue     = String::from("");
+    let mut flagName      = String::from("");
+    let mut flagValue     = String::from("");
     let mut bodyStartIndex: usize = 0;
     
     let mut bodyDelimIndex = 0;
@@ -83,9 +84,9 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     0 if HTTP_Identifier.len() > 0 => {
                         editMode = 1;
                     }, 2 => {
-                        headers.insert(HeaderName.clone().trim().to_string(), HeaderValue.clone().trim().to_string());
-                        HeaderName  = "".to_string();
-                        HeaderValue = "".to_string();
+                        headers.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
+                        flagName  = "".to_string();
+                        flagValue = "".to_string();
                         editMode = 1;
                     }, _ => ()
                 }
@@ -98,10 +99,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                         if c == ':' {
                             editMode = 2;
                         }else{
-                            HeaderName.push_str(&c.to_lowercase().to_string());
+                            flagName.push_str(&c.to_lowercase().to_string());
                         }
                     },
-                    2 => HeaderValue.push(c),
+                    2 => flagValue.push(c),
                     _ => ()
                 }
             }
@@ -115,12 +116,26 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }else{
             match editMode {
                 0 => HTTP_Method .push(c),
-                1 => HTTP_Target .push(c),
+                1 => HTTP_URI    .push(c),
                 2 => HTTP_Version.push(c),
                 _ => ()
             }
         }
     }
+    
+    let mut HTTP_Target = String::from("");
+    let mut HTTP_Params = String::from("");
+    
+    if HTTP_URI.contains('?') {
+        editMode = 0;
+        let loc = HTTP_URI.find('?').unwrap();
+        HTTP_Target = HTTP_URI[..loc].to_string();
+        HTTP_Params = HTTP_URI[(loc+1)..].to_string();
+        parameters = hashmapFromDelims(&HTTP_Params, '=', '&');
+    }else{
+        HTTP_Target = HTTP_URI;
+    }
+    
     HTTP_Target = decode_url(&HTTP_Target);
         
     /*TODO:
@@ -140,7 +155,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         pathString.push('/');
     }
     
-    println!("{} {} {}", HTTP_Version, HTTP_Method, HTTP_Target);
+    println!("{} {} {} {}", HTTP_Version, HTTP_Method, HTTP_Target, HTTP_Params);
     
     'big: loop {
     let mut shorthandDir = false;
