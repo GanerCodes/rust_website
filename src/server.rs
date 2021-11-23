@@ -135,7 +135,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         if URL_Shorts.contains_key(cutPath) { //I need to figure out a way to do better string pattern stuff
             'shorthand: loop {
                 let redirPath = URL_Shorts.get(cutPath).unwrap().to_string();
-                dbg!(&redirPath);
                 for i in WEBSITE_PREFIXES {
                     if redirPath.starts_with(i) {
                         pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
