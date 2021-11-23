@@ -206,7 +206,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                             code: 200,
                             headers: response_headers
                         });
-                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path);
+                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Target);
                         stream.write(format!( //this is a good way to do this
                             "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/></head><body><image src=\"{}\"></image></body><html>",
                             newURL, newURL
