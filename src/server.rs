@@ -69,15 +69,21 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     let mut editMode = 0;
     
     let request_string = String::from_utf8_lossy(&raw_request);
-    
     let mut spl_1 = request_string.splitn(2, "\r\n");
-    let mut spl_2 = request_string.splitn(2, "\r\n\r\n");
-    
     HTTP_Identifier = spl_1.next().unwrap().to_string();
     HTTP_Heads = spl_1.next().unwrap().to_string();
-    HTTP_Body = spl_2.nth(1).unwrap().as_bytes().to_vec();
-    
     HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
+    
+    let mut j = 0;
+    for i in 0..request_length {
+        if raw_request[i] == Body_delim_pattern[j] {
+            if j == 3 {
+                break;
+                HTTP_Body = (&raw_request[i..]).to_vec();
+            }
+            j += 1
+        }
+    }
     
     let mut Identifer_itter = HTTP_Identifier.split(' ');
     HTTP_Method  = Identifer_itter.next().unwrap().to_string();
