@@ -75,10 +75,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
     
     let mut j = 0;
-    for i in 0..(request_length - 2) {
+    for i in 0..(request_length - 1) {
         if raw_request[i] == Body_delim_pattern[j] {
             if j == 3 {
-                HTTP_Body = (&raw_request[i + 2..]).to_vec();
+                HTTP_Body = (&raw_request[i + 1..]).to_vec();
                 break;
             }
             j += 1
