@@ -78,8 +78,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     for i in 0..request_length {
         if raw_request[i] == Body_delim_pattern[j] {
             if j == 3 {
-                break;
                 HTTP_Body = (&raw_request[i..]).to_vec();
+                break;
             }
             j += 1
         }else{
@@ -88,9 +88,9 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     }
     
     let mut Identifer_itter = HTTP_Identifier.split(' ');
-    HTTP_Method  = Identifer_itter.next().unwrap().to_string();
-    HTTP_Target  = Identifer_itter.next().unwrap().to_string();
-    HTTP_Version = Identifer_itter.next().unwrap().to_string();
+    HTTP_Method  = Identifer_itter.next().unwrap().trim().to_string();
+    HTTP_Target  = Identifer_itter.next().unwrap().trim().to_string();
+    HTTP_Version = Identifer_itter.next().unwrap().trim().to_string();
     
     editMode = 0;
     if HTTP_Target.contains('?') {
