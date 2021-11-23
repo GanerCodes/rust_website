@@ -258,7 +258,7 @@ pub fn hashmapFromDelims(input: &String, del: char, sep: char) -> HashMap::<Stri
     let mut valueEdit = false;
     for c in input.chars() {
         match c {
-            c if c == del => { valueEdit = true; },
+            c if c == del && !valueEdit => { valueEdit = true; },
             c if c == sep => {
                 map.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
                 flagName  = "".to_string();
