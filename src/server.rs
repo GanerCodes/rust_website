@@ -103,7 +103,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         HTTP_Path = HTTP_Target.clone();
     }
     
-    HTTP_Path   = decode_url(&HTTP_Path  );
+    let mut Site_Path = decode_url(&HTTP_Path);
         
     /*TODO:
         discord image showing
@@ -117,7 +117,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     response_headers.insert("Content-Type".to_string(), "text/html".to_string());
     response_headers.insert("Connection"  .to_string(), "Closed".to_string());
     
-    let mut pathString = formatPath(&HTTP_Path);
+    let mut pathString = formatPath(&Site_Path);
     
     if pathString.chars().last().unwrap() != '/' { //Enforce prefix detection
         pathString.push('/');
@@ -139,7 +139,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 for i in WEBSITE_PREFIXES {
                     if redirPath.starts_with(i) {
                         pathString = format!("/{}", redirPath.strip_prefix(i).unwrap().to_string());
-                        HTTP_Path   = pathString.clone();
+                        Site_Path   = pathString.clone();
                         shorthandDir = true;
                         break 'shorthand;
                     }
@@ -175,7 +175,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         
         match String::from_utf8(trimmedDecryptedPath.to_vec()) {
             Ok(path) => {
-                HTTP_Path   = path;
+                Site_Path   = path;
                 encryptedDir = true;
             }, _ => {
                 respondCodeText(&stream, response_headers, 404);
@@ -184,7 +184,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     }
     
-    pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Path));
+    pathString = formatPath(&format!("{}{}", &BASE_DIR, &Site_Path));
     
     match (&HTTP_Method).as_str() {
     "GET" => {
@@ -206,7 +206,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                             code: 200,
                             headers: response_headers
                         });
-                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Target);
+                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path);
                         stream.write(format!( //this is a good way to do this
                             "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/></head><body><image src=\"{}\"></image></body><html>",
                             newURL, newURL
@@ -251,8 +251,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     );
                     break;
                 }else{
-                    if HTTP_Path  .chars().last().unwrap() != '/' && !(shorthandDir || encryptedDir) {
-                        send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path  )).to_string());
+                    if Site_Path  .chars().last().unwrap() != '/' && !(shorthandDir || encryptedDir) {
+                        send_redirect(&stream, &(format!("{}://{}{}/", PREFERRED_PROTOCOL, DOMAIN_NAME, &Site_Path  )).to_string());
                         break;
                     }
                     let mut indexPath = filePath.clone();
@@ -273,7 +273,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                                         encrypt_fileName(&format!("/{}", relative_name), AES_KEY)
                                     )
                                 } else {
-                                    format!("{}{}", HTTP_Path  , fileName)
+                                    format!("{}{}", Site_Path  , fileName)
                                 }
                             );
                             dirListingHtml.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &file_URL_Path, &fileName));
@@ -299,7 +299,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             break;
         }
         
-        match HTTP_Path  .as_str() {
+        match Site_Path  .as_str() {
             "/upload" => {
                 if HTTP_Body.len() == 0 {
                     make_response(&stream, &Response{
