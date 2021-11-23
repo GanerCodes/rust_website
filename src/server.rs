@@ -110,9 +110,12 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     response_headers.insert("Connection"  .to_string(), "Closed".to_string());
     
     let mut pathString = formatPath(&HTTP_Path);
+    dbg!(pathString);
+    
     if pathString.chars().last().unwrap() != '/' { //Enforce prefix detection
         pathString.push('/');
     }
+    dbg!(pathString);
     
     println!("{} {} {}", &HTTP_Version, &HTTP_Method, &HTTP_Target);
     
@@ -142,6 +145,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
             break;
         }
     }
+    dbg!(pathString);
     
     if pathString.starts_with(ENCRYPTED_PATH_PREFIX) { //Secret filepaths
         let cutPath = &pathString[ENCRYPTED_PATH_PREFIX.len()..];
@@ -174,20 +178,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     }
     
-    pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Path  ));
-    
-    dbg!(
-        &HTTP_Body,
-        &HTTP_Headers,
-        &HTTP_Heads,
-        &HTTP_Identifier,
-        &HTTP_Method,
-        &HTTP_Parameters,
-        &HTTP_Params,
-        &HTTP_Target,
-        &HTTP_Path  ,
-        &HTTP_Version
-    );
+    pathString = formatPath(&format!("{}{}", &BASE_DIR, &HTTP_Path));
+    dbg!(pathString);
     
     match (&HTTP_Method).as_str() {
     "GET" => {
