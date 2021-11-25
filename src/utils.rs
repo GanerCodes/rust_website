@@ -182,7 +182,6 @@ pub fn get_extension(mut path: &str) -> String {
 }
 
 pub fn get_MIME_from_filename(mut path: &str) -> String {
-    dbg!(&MIME_types);
     match MIME_types.get(&get_extension(path)) {
         Some(val) => {
             return (&val).to_string();

@@ -200,8 +200,6 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         match filePath.canonicalize() {
             Ok(filePath) => {
                 if filePath.is_file() {
-                    dbg!(&filePath);
-                    dbg!(&pathString);
                     let mut MIME = get_MIME_from_filename(&pathString);
                     
                     if !HTTP_Parameters.contains_key("e")  && splitMIME(&MIME).0 == "image" {
