@@ -212,7 +212,7 @@ pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
 }
 
 pub fn splitMIME(mime: &str) -> (&str, &str) {
-    dbg!(&mine);
+    dbg!(&mime);
     let mut spl = mime.splitn(2, '/');
     (spl.next().unwrap(), spl.next().unwrap())
 }
