@@ -278,11 +278,14 @@
         }
         
         let sortType = new URLSearchParams(window.location.search).get("sort");
+        let reverse = new URLSearchParams(window.location.search).get("reverse") != null;
         sortType = sortType == null ? "name" : sortType;
-        
         var sortFunc = sortType == "date" ? ((a, b) => Number(a.time) - Number(b.time)) : ((a, b) => a.name - b.name);
         fetch(window.location.hash.slice(1)).then(r => r.json()).then(r => {
-            file_list = r.filter(a => (a["is_file"] && a["is_file"] != "false")).sort(sortFunc);
+            file_list = r.sort(sortFunc);
+            if(reverse) {
+                file_list.reverse();
+            }
             for(let fileProperties of file_list) {
                 let url = fileProperties.url;
                 let fileNameSplit = fileProperties.file_name.split(".");
