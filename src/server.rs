@@ -3,10 +3,9 @@ use crate::utils::*;
 use crate::sha256::sha256;
 use crate::*;
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::sync::{Arc, Mutex};
 use std::lazy::SyncLazy;
-use std::time::SystemTime;
 use std::{thread, str, fs};
 use std::fs::{File, DirEntry, OpenOptions};
 use std::collections::HashMap;
@@ -202,8 +201,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 if filePath.is_file() {
                     let mut MIME = get_MIME_from_filename(&pathString);
                     
-                    //TODO: make this somehow automatic so it doesn't mess up backend stuff
-                    if !HTTP_Parameters.contains_key("e") && splitMIME(&MIME).0 == "image" {
+                    if HTTP_Parameters.contains_key("e") && splitMIME(&MIME).0 == "image" {
                         make_response(&stream, &Response{
                             code: 200,
                             headers: response_headers
@@ -264,27 +262,47 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                             headers: response_headers
                         }, &indexPath);
                     } else {
-                        let mut dirListingHtml = String::from("<html>\n<head>\n<style>\nhtml {\ncolor:white;\nbackground-color:black;\n}\n</style>\n</head><body>");
-                        for fileEntry in fs::read_dir(filePath.clone()).unwrap() {
-                            let fileName = fileEntry.unwrap().file_name().into_string().unwrap();
-                            let mut file_URL_Path = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME,
-                                if encryptedDir {
-                                    let relative_name = format!("{}/{}", pathString.trim_start_matches(&format!("{}/", BASE_DIR)), fileName);
-                                    format!("{}{}", ENCRYPTED_PATH_PREFIX,
-                                        encrypt_fileName(&format!("/{}", relative_name), AES_KEY)
-                                    )
-                                } else {
-                                    format!("{}{}", Site_Path, fileName)
+                        let is_json = HTTP_Parameters.contains_key("json");
+                        let file_listing = fs::read_dir(filePath.clone()).unwrap();
+                        let mut dir_listing_data = String::from("");
+                        
+                        if is_json {
+                            response_headers.insert("Content-Type".to_string(), "application/JSON".to_string());
+                            dir_listing_data = String::from("[");
+                            let mut file_listing_peekable = file_listing.peekable();
+                            while let Some(fileEntry) = file_listing_peekable.next() {
+                                let file = fileEntry.unwrap();
+                                let metadata = file.metadata().unwrap();
+                                let time_modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH).duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+                                
+                                let fileName = file.file_name().into_string().unwrap();
+                                dir_listing_data.push_str(
+                                    format!("{{\"url\":\"{}\",\"file_name\":\"{}\",\"time\":\"{}\",\"is_file\":\"{}\"}}",
+                                        makeFileURL_bruh(&fileName, &pathString, &Site_Path, encryptedDir),
+                                        fileName,
+                                        time_modified,
+                                        if metadata.is_file() {"true"} else {"false"}
+                                    ).as_str()
+                                );
+                                if !file_listing_peekable.peek().is_none() {
+                                    dir_listing_data.push_str(",");
                                 }
-                            );
-                            dirListingHtml.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &file_URL_Path, &fileName));
+                            }
+                            dir_listing_data.push_str("]");
+                        } else {
+                            dir_listing_data = String::from("<html>\n<head>\n<style>\nhtml {\ncolor:white;\nbackground-color:black;\n}\n</style>\n</head><body>");
+                            for fileEntry in file_listing {
+                                let fileName = fileEntry.unwrap().file_name().into_string().unwrap();
+                                let mut file_URL_Path = makeFileURL_bruh(&fileName, &pathString, &Site_Path, encryptedDir);
+                                dir_listing_data.push_str(&format!("<p><a href=\"{}\">{}</a></p>\n", &file_URL_Path, &fileName));
+                            }
+                            dir_listing_data.push_str("</body>\n</html>");
                         }
-                        dirListingHtml.push_str("</body>\n</html>");
                         make_response(&stream, &Response{
                             code: 200,
                             headers: response_headers
                         });
-                        stream.write(dirListingHtml.as_bytes());
+                        stream.write(dir_listing_data.as_bytes());
                     }
                 }
             },

@@ -1,5 +1,6 @@
 use crate::Rust_AES::encrypt::AES_Encrypt;
 use crate::server::{MIME_types, response_codes};
+use crate::config::*;
 
 use std::lazy::SyncLazy;
 use std::{fmt, thread, str, fs};
@@ -277,4 +278,20 @@ pub fn hashmapFromDelims(input: &String, del: char, sep: char) -> HashMap::<Stri
         map.insert(flagName.clone().trim().to_string(), flagValue.clone().trim().to_string());
     }
     map
+}
+
+pub fn makeFileURL_bruh(fileName: &String, pathString: &String, Site_Path: &String, encryptedDir: bool) -> String {
+    format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME,
+        if encryptedDir {
+            let relative_name = format!("{}/{}", 
+                pathString.trim_start_matches(&format!("{}/", BASE_DIR)),
+            fileName);
+            
+            format!("{}{}", ENCRYPTED_PATH_PREFIX,
+                encrypt_fileName(&format!("/{}", relative_name), AES_KEY)
+            )
+        } else {
+            format!("{}{}", Site_Path, fileName)
+        }
+    )
 }
