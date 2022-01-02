@@ -285,7 +285,7 @@
             file_list = r.filter(a => (a["is_file"] && a["is_file"] != "false")).sort(sortFunc);
             for(let fileProperties of file_list) {
                 let url = fileProperties.url;
-                let fileNameSplit = fileProperties.name.split(".");
+                let fileNameSplit = fileProperties.file_name.split(".");
                 let ext = fileNameSplit.length > 0 ? fileNameSplit.pop() : "";
                 
                 let type = "img";
