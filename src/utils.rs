@@ -108,7 +108,7 @@ pub fn DTAsafe(mut path: &str, mut base: &str) -> bool {
         return false;
     }
     let mut pathLower = path.to_lowercase();
-    let mut baseLower = path.to_lowercase();
+    let mut baseLower = base.to_lowercase();
     let mut pathChars = pathLower.chars();
     let mut baseChars = baseLower.chars();
     for i in 0..base.len() {
