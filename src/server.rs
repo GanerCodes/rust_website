@@ -200,7 +200,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let mut MIME = get_MIME_from_filename(&pathString);
                     let mut sMIME = splitMIME(&MIME).0;
                     
-                    println!(&sMIME);
+                    println!("{}", &sMIME);
                     
                     if HTTP_Parameters.contains_key("e") && (sMIME == "image" || sMIME == "video") {
                         make_response(&stream, &Response{
