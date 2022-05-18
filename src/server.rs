@@ -13,8 +13,6 @@ use std::path::{Path, PathBuf};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{SeekFrom, BufReader, Read, Write, prelude::*};
 
-static Body_delim_pattern: [u8; 4] = [13, 10, 13, 10];
-
 pub static MIME_types: SyncLazy<HashMap::<String, String>> = SyncLazy::new(|| {
     let mut MIMEs = HashMap::<String, String>::new();
     let MIME_types_file = fs::File::open(&MIME_FILE_PATH).unwrap();
@@ -49,60 +47,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     let request_length = (&raw_request).len();
     if request_length == 0 { return; } //why does this happen so much?
     
-    let mut HTTP_Headers    = HashMap::<String, String>::new(); // {"User-Agent": "Various Personal Info"}
-    let mut HTTP_Parameters = HashMap::<String, String>::new(); // {"foo": "bar"}
-    let mut HTTP_Identifier = String::from(""); // First line of request
-    let mut HTTP_Method     = String::from(""); // GET, POST, etc
-    let mut HTTP_Heads      = String::from(""); // accept: *\*\r\ncache-control: no-cache
-    let mut HTTP_Params     = String::from(""); // ?foo=bar&amogus=sus
-    let mut HTTP_Version    = String::from(""); // HTTP/1.1
-    let mut HTTP_Target     = String::from(""); // 
-    let mut HTTP_Path       = String::from(""); //
-    let mut HTTP_Body       = Vec::<u8>::new(); // Binary data
-    
-    let mut flagName        = String::from("");
-    let mut flagValue       = String::from("");
-    let mut bodyStartIndex: usize = 0;
-    
-    let mut bodyDelimIndex = 0;
-    let mut editMode = 0;
-    
-    let request_string = String::from_utf8_lossy(&raw_request);
-    let mut spl_1 = request_string.splitn(2, "\r\n");
-    HTTP_Identifier = spl_1.next().unwrap().to_string();
-    HTTP_Heads = spl_1.next().unwrap().to_string();
-    HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
-    
-    let mut j = 0;
-    for i in 0..(request_length - 1) {
-        if raw_request[i] == Body_delim_pattern[j] {
-            if j == 3 {
-                HTTP_Body = (&raw_request[i + 1..]).to_vec();
-                break;
-            }
-            j += 1
-        }else{
-            j = 0;
-        }
-    }
-    
-    let mut Identifer_itter = HTTP_Identifier.split(' ');
-    HTTP_Method  = Identifer_itter.next().unwrap().trim().to_string();
-    HTTP_Target  = Identifer_itter.next().unwrap().trim().to_string();
-    HTTP_Version = Identifer_itter.next().unwrap().trim().to_string();
-    
-    editMode = 0;
-    if HTTP_Target.contains('?') {
-        editMode = 0;
-        let loc = HTTP_Target.find('?').unwrap();
-        HTTP_Path   = HTTP_Target[..loc].to_string();
-        HTTP_Params = HTTP_Target[(loc+1)..].to_string();
-        HTTP_Parameters = hashmapFromDelims(&HTTP_Params, '=', '&');
-    }else{
-        HTTP_Path = HTTP_Target.clone();
-    }
-    
-    let mut Site_Path = decode_url(&HTTP_Path);
+    let HTTP = parse_request(raw_request);
+    let mut Site_Path = decode_url(&HTTP.Path);
         
     /*TODO:
         unretard the code
@@ -120,7 +66,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         pathString.push('/');
     }
     
-    println!("{} {} {}", &HTTP_Version, &HTTP_Method, &HTTP_Target);
+    println!("{} {} {}", &HTTP.Version, &HTTP.Method, &HTTP.Target);
     
     'big: loop {
     let mut shorthandDir = false;
@@ -182,7 +128,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
     
     pathString = formatPath(&format!("{}{}", &BASE_DIR, &Site_Path));
     
-    match (&HTTP_Method).as_str() {
+    match (&HTTP.Method).as_str() {
     "GET" => {
         if !DTAsafe(&pathString, &BASE_DIR) {
             make_response(&stream, &Response {
@@ -200,12 +146,12 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let mut MIME = get_MIME_from_filename(&pathString);
                     let mut sMIME = splitMIME(&MIME).0;
                     
-                    if HTTP_Parameters.contains_key("e") && (sMIME == "image" || sMIME == "video") {
+                    if HTTP.Parameters.contains_key("e") && (sMIME == "image" || sMIME == "video") {
                         make_response(&stream, &Response{
                             code: 200,
                             headers: response_headers
                         });
-                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP_Path);
+                        let newURL = format!("{}://{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, &HTTP.Path);
                         stream.write(format!( //this is a good way to do this
                             "<!DOCTYPE html> <html> <head> <style> html {{ background: #010101; overflow: auto; width: 100vw; height: 100vh; }} body {{ display: flex; justify-content: center; align-items: center; margin: auto; width: 100%; height: 100%; }}</style><meta content=\"{}\" property=\"og:image\"/><meta name=\"twitter:card\" content=\"summary_large_image\"></head><body><{} src=\"{}\"></{}></body><html>",
                             newURL, sMIME, newURL, sMIME
@@ -221,8 +167,8 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let fileSizeString = fileSize.to_string();
                     
                     let rangeKey = "range".to_string();
-                    if HTTP_Headers.contains_key(&rangeKey) {
-                        let contentRange = parseRangeHeader(&HTTP_Headers.get(&rangeKey).unwrap(), fileSize);
+                    if HTTP.Headers.contains_key(&rangeKey) {
+                        let contentRange = parseRangeHeader(&HTTP.Headers.get(&rangeKey).unwrap(), fileSize);
                         let rangeHeader = format!("bytes {}-{}/{}", contentRange.0, contentRange.1, fileSize);
                         let byteReadCount = (contentRange.1 - contentRange.0) + 1;
                         response_headers.insert("Content-Range".to_string(), rangeHeader);
@@ -261,7 +207,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                             headers: response_headers
                         }, &indexPath);
                     } else {
-                        let is_json = HTTP_Parameters.contains_key("json");
+                        let is_json = HTTP.Parameters.contains_key("json");
                         let file_listing = fs::read_dir(filePath.clone()).unwrap();
                         let mut dir_listing_data = String::from("");
                         
@@ -312,14 +258,14 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
         }
     },
     "POST" => {
-        if !HTTP_Headers.contains_key("access") || HTTP_Headers.get("access").unwrap() != ACCESS_PASSWORD {
+        if !HTTP.Headers.contains_key("access") || HTTP.Headers.get("access").unwrap() != ACCESS_PASSWORD {
             respondCodeText(&stream, response_headers, 404);
             break;
         }
         
         match Site_Path.as_str() {
             "/upload" => {
-                if HTTP_Body.len() == 0 {
+                if HTTP.Body.len() == 0 {
                     make_response(&stream, &Response{
                         code: 400,
                         headers: response_headers
@@ -329,7 +275,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 
                 let newFileDir  = format!("{}{}", BASE_DIR, UPLOAD_FILE_PATH);
                 
-                let fileNameFromHeader = if HTTP_Headers.contains_key("filename") {HTTP_Headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
+                let fileNameFromHeader = if HTTP.Headers.contains_key("filename") {HTTP.Headers.get("filename").unwrap()} else {"youJustLostTheGame.txt"};
                 let fileName = format!("{}{}", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos(), fileNameFromHeader);
                 let fileExt  = get_extension(&fileName);
                 
@@ -338,7 +284,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 
                 fs::create_dir_all(&newFileDir).unwrap();
                 let mut newFile = File::create(newFilePath).unwrap();
-                newFile.write_all(&HTTP_Body);
+                newFile.write_all(&HTTP.Body);
                 
                 let encryptedSegment = encrypt_fileName(
                     &format!("{}/{}", UPLOAD_FILE_PATH, newFileName),
@@ -357,10 +303,10 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                 break;
             },
             "/shortenURL" => {
-                if HTTP_Headers.contains_key("url") {
+                if HTTP.Headers.contains_key("url") {
                     let mut URL_Shorts = URL_Shorts_shared.lock().unwrap();
-                    let passed_url = HTTP_Headers.get("url").unwrap();
-                    let isFilepath = HTTP_Headers.contains_key("localpath");
+                    let passed_url = HTTP.Headers.get("url").unwrap();
+                    let isFilepath = HTTP.Headers.contains_key("localpath");
                     let base_url = if isFilepath {
                         format!("{}://{}{}{}", PREFERRED_PROTOCOL, DOMAIN_NAME, ENCRYPTED_PATH_PREFIX, encrypt_fileName(passed_url, AES_KEY))
                     } else {

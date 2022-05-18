@@ -11,15 +11,97 @@ use std::io::{BufReader, Read, Write, prelude::*};
 use std::collections::HashMap;
 use std::fmt::Write as fmtWrite;
 
+pub struct Response<> {
+    pub code: u16,
+    pub headers: HashMap<String, String>
+}
+
+pub struct HTTP_Parsed<> {
+    pub Headers    : HashMap::<String, String>,
+    pub Parameters : HashMap::<String, String>,
+    pub Identifier : String,
+    pub Method     : String,
+    pub Heads      : String,
+    pub Params     : String,
+    pub Version    : String,
+    pub Target     : String,
+    pub Path       : String,
+    pub Body       : Vec::<u8>
+}
+
+static Body_delim_pattern: [u8; 4] = [13, 10, 13, 10];
+pub fn parse_request(raw_request : Vec<u8>) -> HTTP_Parsed {
+    let request_string = String::from_utf8_lossy(&raw_request);
+    let request_length = (&raw_request).len();
+    
+    let mut HTTP_Headers    = HashMap::<String, String>::new(); // {"User-Agent": "Various Personal Info"}
+    let mut HTTP_Parameters = HashMap::<String, String>::new(); // {"foo": "bar"}
+    let mut HTTP_Identifier = String::from(""); // First line of request
+    let mut HTTP_Method     = String::from(""); // GET, POST, etc
+    let mut HTTP_Heads      = String::from(""); // accept: *\*\r\ncache-control: no-cache
+    let mut HTTP_Params     = String::from(""); // ?foo=bar&amogus=sus
+    let mut HTTP_Version    = String::from(""); // HTTP/1.1
+    let mut HTTP_Target     = String::from(""); // 
+    let mut HTTP_Path       = String::from(""); //
+    let mut HTTP_Body       = Vec::<u8>::new(); // Binary data
+    
+    let mut flagName        = String::from("");
+    let mut flagValue       = String::from("");
+    let mut bodyStartIndex: usize = 0;
+    
+    let mut bodyDelimIndex = 0;
+    let mut editMode = 0;
+    
+    let mut spl_1 = request_string.splitn(2, "\r\n");
+    HTTP_Identifier = spl_1.next().unwrap().to_string();
+    HTTP_Heads = spl_1.next().unwrap().to_string();
+    HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
+    
+    let mut j = 0;
+    for i in 0..(request_length - 1) {
+        if raw_request[i] == Body_delim_pattern[j] {
+            if j == 3 {
+                HTTP_Body = (&raw_request[i + 1..]).to_vec();
+                break;
+            }
+            j += 1
+        }else{
+            j = 0;
+        }
+    }
+    
+    let mut Identifer_itter = HTTP_Identifier.split(' ');
+    HTTP_Method  = Identifer_itter.next().unwrap().trim().to_string();
+    HTTP_Target  = Identifer_itter.next().unwrap().trim().to_string();
+    HTTP_Version = Identifer_itter.next().unwrap().trim().to_string();
+    
+    editMode = 0;
+    if HTTP_Target.contains('?') {
+        editMode = 0;
+        let loc = HTTP_Target.find('?').unwrap();
+        HTTP_Path   = HTTP_Target[..loc].to_string();
+        HTTP_Params = HTTP_Target[(loc+1)..].to_string();
+        HTTP_Parameters = hashmapFromDelims(&HTTP_Params, '=', '&');
+    }else{
+        HTTP_Path = HTTP_Target.clone();
+    }
+    
+    HTTP_Parsed{Headers    : HTTP_Headers,
+                Parameters : HTTP_Parameters,
+                Identifier : HTTP_Identifier,
+                Method     : HTTP_Method,
+                Heads      : HTTP_Heads,
+                Params     : HTTP_Params,
+                Version    : HTTP_Version,
+                Target     : HTTP_Target,
+                Path       : HTTP_Path,
+                Body       : HTTP_Body}
+}
+
 pub fn printMap(mut map: HashMap::<String, String>) {
     for (key, value) in map.into_iter() {
         println!("{:<32} :\t{}", key, value);
     }
-}
-
-pub struct Response<> {
-    pub code: u16,
-    pub headers: HashMap<String, String>
 }
 
 pub fn make_response(mut stream: &TcpStream, response: &Response) {
@@ -36,6 +118,7 @@ pub fn make_response(mut stream: &TcpStream, response: &Response) {
 }
 
 pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &PathBuf) {
+    // TODO write in chunks
     match fs::read(&filePath) {
         Ok(content) => {
             make_response(&stream, &response);
