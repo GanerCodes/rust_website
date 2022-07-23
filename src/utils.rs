@@ -283,7 +283,6 @@ pub fn get_MIME_from_filename(mut path: &str) -> String {
     }
 }
 
-//I'm really considering using regex and the such at this point, this is so many lines for such a stupid thing
 pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
     let mut sStr = "".to_string();
     let mut eStr = "".to_string();
@@ -301,6 +300,7 @@ pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
     let eNum = min(
         eStr.parse::<u64>().unwrap_or(fileSize - 1),
         sNum + (DEFAULT_CHUNK_LENGTH as u64));
+    
     return (sNum, eNum);
 }
 
