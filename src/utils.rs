@@ -118,18 +118,15 @@ pub fn make_response(mut stream: &TcpStream, response: &Response) {
 }
 
 pub fn write_file(mut stream: &TcpStream, response: &Response, mut filePath: &PathBuf) {
-    // TODO write in chunks
-    
     match fs::File::open(&filePath) {
         Ok(file) => {
             make_response(&stream, &response);
             
-            const chunk_length: usize = DEFAULT_CHUNK_LENGTH as usize;
-            let mut buffer = [0u8; chunk_length];
+            let mut buffer = [0u8; DEFAULT_CHUNK_LENGTH];
             loop {
                 let read_bytes = (&file).read(&mut buffer).unwrap() as usize;
                 stream.write(&buffer[..read_bytes]);
-                if read_bytes < chunk_length {
+                if read_bytes < DEFAULT_CHUNK_LENGTH {
                     break;
                 }
             }
@@ -303,7 +300,7 @@ pub fn parseRangeHeader(header: &String, fileSize: u64) -> (u64, u64) {
     let sNum = sStr.parse::<u64>().unwrap_or(0);
     let eNum = min(
         eStr.parse::<u64>().unwrap_or(fileSize - 1),
-        sNum + DEFAULT_CHUNK_LENGTH);
+        sNum + (DEFAULT_CHUNK_LENGTH as u64));
     return (sNum, eNum);
 }
 

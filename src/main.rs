@@ -37,7 +37,8 @@ pub fn main() {
             let mut URL_short_clone = URL_shorts.clone();
             match stream {
                 Ok(stream) => {
-                    thread::spawn(move || handle_client(stream, URL_short_clone));
+                    thread::Builder::new().stack_size(2 * DEFAULT_CHUNK_LENGTH).spawn(
+                        move || handle_client(stream, URL_short_clone));
                 } Err(e) => {
                     println!("Error: {}", e);
                 }
