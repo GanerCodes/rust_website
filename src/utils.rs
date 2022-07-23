@@ -56,6 +56,9 @@ pub fn parse_request(raw_request : Vec<u8>) -> HTTP_Parsed {
     HTTP_Identifier = spl_1.next().unwrap().to_string();
     HTTP_Heads = spl_1.next().unwrap().to_string();
     HTTP_Headers = hashmapFromDelims(&HTTP_Heads, ':', '\n');
+    for (_, v) in HTTP_Headers.iter_mut() {
+        *v = v.to_lowercase();
+    }
     
     let mut j = 0;
     for i in 0..(request_length - 1) {

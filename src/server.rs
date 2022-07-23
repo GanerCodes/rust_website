@@ -167,7 +167,7 @@ pub fn handle_client(mut stream: TcpStream, mut URL_Shorts_shared: Arc<Mutex<Has
                     let fileSize = fileMetadata.len();
                     let fileSizeString = fileSize.to_string();
                     
-                    let rangeKey = "Range".to_string(); // mfw case sensitive headers
+                    let rangeKey = "Range".to_string();
                     if HTTP.Headers.contains_key(&rangeKey) {
                         let contentRange = parseRangeHeader(&HTTP.Headers.get(&rangeKey).unwrap(), fileSize);
                         let rangeHeader = format!("bytes {}-{}/{}", contentRange.0, contentRange.1, fileSize);
