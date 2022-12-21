@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Comic Browser</title>
+        <meta charset="UTF-8">
+        <style>
+            :root {
+                --rainbow: linear-gradient(45deg, rgba(255,0,0,1) 0%, rgba(255,154,0,1) 10%, rgba(208,222,33,1) 20%, rgba(79,220,74,1) 30%, rgba(63,218,216,1) 40%, rgba(47,201,226,1) 50%, rgba(28,127,238,1) 60%, rgba(95,21,242,1) 70%, rgba(186,12,248,1) 80%, rgba(251,7,217,1) 90%, rgba(255,0,0,1) 100%);
+                --rainbowDark: linear-gradient(45deg, rgba(255,0,0,0.75) 0%, rgba(255,154,0,0.75) 10%, rgba(208,222,33,0.75) 20%, rgba(79,220,74,0.75) 30%, rgba(63,218,216,0.75) 40%, rgba(47,201,226,0.75) 50%, rgba(28,127,238,0.75) 60%, rgba(95,21,242,0.75) 70%, rgba(186,12,248,0.75) 80%, rgba(251,7,217,0.75) 90%, rgba(255,0,0,0.75) 100%);
+            }
+            ::-webkit-scrollbar-thumb {
+                background-image: var(--rainbow);
+                box-shadow: inset 2px 2px 5px 0 rgba(#fff, 0.5);
+                border-radius: 100px;
+            }
+            ::-webkit-scrollbar {
+                width: 5px;
+            }
+            input[type="range"] {
+                -webkit-appearance: none;
+                transform: translateY(9px);
+                height: 7px;
+                background: rgba(255, 255, 255, 0.6);
+                border-radius: 5px;
+                background-image: var(--rainbow);
+            }
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit-appearance: none;
+                height: 20px;
+                width: 20px;
+                border-radius: 50%;
+                background: #000;
+                border: 2px solid white;
+                cursor: pointer;
+            }
+            input[type="range"]::-webkit-slider-thumb:hover {
+                transform: scale(1.05);
+            }
+            
+            html, body {
+                background: #000;
+                width: 100%;
+                height: 100%;
+                margin: 0px;
+                padding: 0px;
+                color: white;
+            }
+            .content {
+                width: 100%;
+                height: auto;
+                min-height: 50px;
+            }
+            audio > .content {
+                min-height: 50px !important;
+            }
+            #contentList {
+                display: grid;
+                grid-template-columns: repeat(1, 100%);
+                gap: 10px;
+                width: 100%;
+            }
+            #contentListContainer {
+                text-align: center;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                margin-left: auto;
+                margin-right: auto;
+                width: 100%;
+            }
+            
+            .guiStack {
+                width: 100%;
+                position: sticky;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: fit-content;
+                margin-top: 9px;
+                margin-bottom: 15px;
+            }
+            .guiSpan {
+                width: 100%;
+                margin-top: 5px;
+                display: flex;
+                justify-content: center;
+                flex-direction: row;
+                height: 35px;
+            }
+            .guiSpan > * {
+                width: 250px;
+                margin-right: 30px;
+                margin-left: 30px;
+            }
+            .buttonSpan {
+                display: flex;
+                flex-direction: row;
+                width: 50%;
+                justify-content: space-evenly;
+                align-items: center;
+            }
+            .buttonTextSeperator {
+                width: 400px;
+                margin-left: 50px;
+                margin-right: 50px;
+            }
+            .buttonTextSeperator > button {
+                outline: none;
+                border: none;
+                background: none;
+            }
+            .buttonTextSeperator > button:hover {
+                transform: translateY(-2px);
+                cursor: pointer;
+            }
+            .buttonTextSeperator > button:active {
+                transform: translateY(-2px) scale(1.1);
+            }
+            .buttonTextSeperator > button > text {
+                font-size: large;
+                margin: 0px;
+            }
+            .buttonText {
+                padding-top: 3px;
+            }
+            #autoscrollSpan {
+                position: fixed;
+                display: flex;
+                flex-direction: row;
+                width: fit-content;
+                height: 30px;
+                padding: 0px;
+                margin: 0px;
+                z-index: 5;
+                opacity: 0.6;
+            }
+            #autoscrollSpan:hover {
+                opacity: 1;
+            }
+            #autoscrollSpan > * {
+                padding: none;
+                outline: none;
+                margin: none;
+                border: none;
+            }
+            #autoscrollSpan > button {
+                width: 26.75px;
+                height: 26.75px;
+                background: none;
+            }
+            #autoscrollSpan > button:hover {
+                cursor: pointer;
+            }
+            #autoscrollSpan > button:active {
+                transform: scale(1.1);
+                cursor: pointer;
+            }
+        </style>
+    </head>
+    <body>
+        <span id="autoscrollSpan">
+            <button id="btn_autoscroll" onclick="toggleAutoscroll(this)">
+                <text class="checkBoxText">⏬</text>
+            </button>
+            <input type="range" min=1 value=1 max=10 step=0.001 id="autoscrollSlider" oninput="saveSlider(this)">
+        </span>
+        <div class="guiStack">
+            <span class="guiSpan">
+                <input type="range" min=1 value=1 max=10 step=1 id="gridSlider" oninput="updateGrid(this); saveSlider(this)">
+                <input type="range" min=10 value=65 max=100 step=0.001 id="updateSlider" oninput="updateWidth(); saveSlider(this)">
+            </span>
+            <span class="buttonSpan">
+                <span class="buttonTextSeperator">
+                    <button style="float:right" id="btn_autoplay" onclick="toggleButton(this)">
+                        <text class="checkBoxText">✅</text>
+                    </button>
+                    <text style="float:right" class="buttonText">Autoplay</text>
+                </span>
+                <span class="buttonTextSeperator">
+                    <button style="float:left" id="btn_volume" onclick="toggleButton(this)">
+                        <text class="checkBoxText">🚫</text>
+                    </button>
+                    <text style="float:left" class="buttonText">Sound</text>
+                </span>
+            </span>
+        </div>
+        <div id="contentListContainer">
+            <div id="contentList"></div>
+        </div>
+    </body>
+    <script>
+        var file_list = [];
+        var types = {
+            "video": ["mp4", "webm", "mkv", "avi"],
+            "audio": ["mp3", "wav", "m4a"]
+        }
+        var muteLimbo = true, limboMuteElements = [];
+        var colCount = 1, autoscrollPosition = 0;
+        
+        var scaleSlider = document.getElementById("updateSlider");
+        var autoscrollButton = document.getElementById("btn_autoscroll");
+        var autoscrollText = autoscrollButton.querySelector(".checkBoxText");
+        var autoscrollSlider = document.getElementById("autoscrollSlider");
+        var container = document.getElementById("contentList");
+        
+        document.body.addEventListener("mousedown", () => {
+            muteLimbo = false;
+            while(limboMuteElements.length) limboMuteElements.pop().muted = false;
+        });
+        window.addEventListener('wheel', event => {
+            if(event.target.type == "range") {
+                event.target.value = Number(event.target.value) - Math.sign(event.deltaY);
+                event.target.oninput();
+                event.preventDefault()
+            }
+            
+            if (!event.ctrlKey) return;
+            event.preventDefault()
+            scaleSlider.value = Number(scaleSlider.value) - event.deltaY / 25.0;
+            scaleSlider.oninput();
+        }, { passive: false });
+        
+        function toggleButton(btn, force) {
+            let boxTextElm = btn.querySelector(".checkBoxText");
+            let state = (force !== undefined) ? force : boxTextElm.innerHTML != '✅';
+            boxTextElm.innerHTML = state ? '✅' : '🚫';
+            localStorage.setItem(btn.id, state);
+            
+            if(btn.id == "btn_autoplay") {
+                if(state) {
+                    if(force == undefined) {
+                        toggleButton(document.getElementById("btn_volume"), false);
+                    } 
+                    for(const e of document.querySelectorAll("video")) {
+                        e.autoplay = true;
+                        e.loop = true;
+                        if(!e.muted && muteLimbo) {
+                            e.muted = true;
+                            if(!limboMuteElements.includes(e)) {
+                                limboMuteElements.push(e);
+                            }
+                        }
+                        e.play();
+                    }
+                }else{
+                    for(const e of document.querySelectorAll("video, audio")) {
+                        e.autoplay = false;
+                        e.loop = false;
+                        e.pause();
+                    }
+                }
+            }else if(btn.id == "btn_volume") {
+                document.querySelectorAll("video, audio").forEach(e => {e.muted = !state})
+            }
+        }
+        
+        function toggleAutoscroll(btn) {
+            let k = autoscrollText.innerHTML;
+            let state = k == '⏬';
+            autoscrollText.innerHTML = state ? '⏸️' : '⏬';
+        }
+        function saveSlider(slider) {
+            localStorage.setItem(slider.id, slider.value);
+        }
+        
+        function getWidth() {
+            return scaleSlider.value;
+        }
+        function updateGrid(slider) {
+            colCount = slider.value;
+            container.style["grid-template-columns"] = `repeat(${colCount}, ${100/colCount}%`;
+            updateWidth();
+        }
+        function updateWidth() {
+            document.getElementById("contentListContainer").style.width = `${getWidth()}%`;
+            document.getElementById("contentList").style.width = `calc(100% - ${10 * (colCount - 1)}px)`
+        }
+        
+        let sortType = new URLSearchParams(window.location.search).get("sort");
+        let reverse = new URLSearchParams(window.location.search).get("reverse") != null;
+        sortType = sortType == null ? "name" : sortType;
+        var sortFunc = sortType == "date" ? ((a, b) => Number(a.time) - Number(b.time)) : ((a, b) => a.name - b.name);
+        fetch(window.location.hash.slice(1)).then(r => r.json()).then(r => {
+            file_list = r.sort(sortFunc);
+            if(reverse) {
+                file_list.reverse();
+            }
+            for(let fileProperties of file_list) {
+                let url = fileProperties.url;
+                let fileNameSplit = fileProperties.file_name.split(".");
+                let ext = fileNameSplit.length > 0 ? fileNameSplit.pop() : "";
+                
+                let type = "img";
+                for(const [k, v] of Object.entries(types)) {
+                    if(v.includes(ext)) {
+                        type = k;
+                        break;
+                    }
+                }
+                let elm = document.createElement(type);
+                if(type == "img") {
+                    elm.src = url;
+                    elm.crossorigin = "anonymous";
+                    
+                    elm.onmouseover = () => {
+                        elm.style = "cursor: " + (colCount == 1 ? "normal" : "pointer");
+                    }
+                    elm.onmouseleave = () => {
+                        elm.style = "cursor: " + ("normal");
+                    }
+                    elm.onclick = () => {
+                        if(colCount == 1) return;
+                        window.open(url, "_blank")
+                    };
+                }else{
+                    elm.type = type;
+                    elm.controls = true;
+                    elm.muted = true;
+                    
+                    let sourceElm = document.createElement("source");
+                    sourceElm.src = url;
+                    sourceElm.crossorigin="anonymous"
+                    sourceElm.type = `${type}/${ext}`;
+                    elm.appendChild(sourceElm)
+                }
+                elm.className = "content";
+                container.appendChild(elm);
+            }
+            
+            for(const [k, v] of Object.entries(localStorage)) {
+                let elm = document.getElementById(k);
+                if(!elm) continue;
+                
+                if(elm.type == "range") {
+                    elm.value = Number(v);
+                    elm.oninput();
+                }else if(elm.type == "submit") {
+                    console.log(k, v);
+                    toggleButton(elm, v == "true");
+                }
+            }
+            
+            (autoscrollLooper = () => {
+                let isScrolling = autoscrollText.innerHTML == '⏸️';
+                if(isScrolling) {
+                    let sliderVal = Number(autoscrollSlider.value); // Epic javascript moment
+                    scrollTo(0, window.scrollY + sliderVal);
+                }
+                setTimeout(autoscrollLooper, isScrolling ? 20 : 200);
+            })();
+        });
+    </script>
+</html>
