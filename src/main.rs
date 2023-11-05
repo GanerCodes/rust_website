@@ -1,5 +1,5 @@
 #![allow(warnings, unused)]
-#![feature(once_cell)]
+#![feature(once_cell, lazy_cell)]
 
 mod Rust_AES;
 mod sha256;
