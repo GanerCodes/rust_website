@@ -1,6 +1,7 @@
 files/*
-src/URL_shortens.kvm
+!files/.keep
+URL_shortens.kvm
+config.rs
 src/main
 src/main.exe
 src/main.pdb
-src/config.rs
