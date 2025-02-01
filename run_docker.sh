@@ -1,3 +1,4 @@
+#!/bin/bash
 set -e && cd "${0%/*}"
 touch URL_shortens.kvm
 docker build -t rust_webserver .
